@@ -5,25 +5,85 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Edit } from "lucide-react";
+import { CreditCard, Edit, Loader2 } from "lucide-react";
+import { usePricingTiers, useCustomers } from "@/hooks/useSupabaseData";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const PricingTiers = () => {
   const [editingTier, setEditingTier] = useState<string | null>(null);
-  const [pricing, setPricing] = useState({
-    Platinum: { lbc: 600, hpv: 900, cotest: 1350 },
-    Gold: { lbc: 800, hpv: 1200, cotest: 1800 },
-    Silver: { lbc: 1000, hpv: 1500, cotest: 2250 }
-  });
+  const [updating, setUpdating] = useState(false);
+  const { pricingTiers, loading: pricingLoading } = usePricingTiers();
+  const { customers, loading: customersLoading } = useCustomers();
 
-  const handlePricingUpdate = (tier: string, testType: string, value: number) => {
-    setPricing(prev => ({
+  const [editValues, setEditValues] = useState<{
+    [key: string]: { lbc_price: number; hpv_price: number; co_test_price: number }
+  }>({});
+
+  const handleEditStart = (tierName: string, tier: any) => {
+    setEditingTier(tierName);
+    setEditValues({
+      [tierName]: {
+        lbc_price: tier.lbc_price,
+        hpv_price: tier.hpv_price,
+        co_test_price: tier.co_test_price
+      }
+    });
+  };
+
+  const handlePricingUpdate = (tierName: string, field: string, value: number) => {
+    setEditValues(prev => ({
       ...prev,
-      [tier]: {
-        ...prev[tier as keyof typeof prev],
-        [testType]: value
+      [tierName]: {
+        ...prev[tierName],
+        [field]: value
       }
     }));
   };
+
+  const handleSave = async (tierName: string) => {
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('pricing_tiers')
+        .update(editValues[tierName])
+        .eq('tier_name', tierName);
+
+      if (error) throw error;
+      
+      toast.success(`${tierName} tier pricing updated successfully`);
+      setEditingTier(null);
+    } catch (error: any) {
+      toast.error(`Failed to update pricing: ${error.message}`);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const getCustomerCountByTier = (tier: string) => {
+    return customers.filter(customer => customer.tier === tier).length;
+  };
+
+  const getSavingsPercentage = (tierName: string) => {
+    const silverTier = pricingTiers.find(t => t.tier_name === 'Silver');
+    const currentTier = pricingTiers.find(t => t.tier_name === tierName);
+    
+    if (!silverTier || !currentTier) return '0%';
+    
+    const silverAvg = (silverTier.lbc_price + silverTier.hpv_price + silverTier.co_test_price) / 3;
+    const currentAvg = (currentTier.lbc_price + currentTier.hpv_price + currentTier.co_test_price) / 3;
+    const savings = Math.round(((silverAvg - currentAvg) / silverAvg) * 100);
+    
+    return savings > 0 ? `${savings}% off` : 'Standard';
+  };
+
+  if (pricingLoading || customersLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -35,96 +95,125 @@ const PricingTiers = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {Object.entries(pricing).map(([tier, prices]) => (
-          <Card key={tier} className={`${tier === 'Platinum' ? 'border-purple-200 bg-purple-50' : 
-                                      tier === 'Gold' ? 'border-yellow-200 bg-yellow-50' : 
-                                      'border-gray-200 bg-gray-50'}`}>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <CreditCard className="h-5 w-5" />
-                  <span>{tier} Tier</span>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => setEditingTier(editingTier === tier ? null : tier)}
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
-              </CardTitle>
-              <CardDescription>
-                {tier === 'Platinum' && 'Premium customers with highest volume'}
-                {tier === 'Gold' && 'Regular customers with moderate volume'}
-                {tier === 'Silver' && 'Standard pricing for new customers'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <Label htmlFor={`${tier}-lbc`}>LBC Test</Label>
-                  {editingTier === tier ? (
-                    <Input
-                      id={`${tier}-lbc`}
-                      type="number"
-                      value={prices.lbc}
-                      onChange={(e) => handlePricingUpdate(tier, 'lbc', Number(e.target.value))}
-                      className="w-24 text-right"
-                    />
-                  ) : (
-                    <span className="font-medium">₹{prices.lbc}</span>
-                  )}
+        {pricingTiers.map((tier) => {
+          const tierName = tier.tier_name;
+          const isEditing = editingTier === tierName;
+          const editingValues = editValues[tierName] || tier;
+          
+          return (
+            <Card key={tier.id} className={`${
+              tierName === 'Platinum' ? 'border-purple-200 bg-purple-50' : 
+              tierName === 'Gold' ? 'border-yellow-200 bg-yellow-50' : 
+              'border-gray-200 bg-gray-50'
+            }`}>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <CreditCard className="h-5 w-5" />
+                    <span>{tierName} Tier</span>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => isEditing ? setEditingTier(null) : handleEditStart(tierName, tier)}
+                    disabled={updating}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </CardTitle>
+                <CardDescription>
+                  {tierName === 'Platinum' && 'Premium customers with highest volume'}
+                  {tierName === 'Gold' && 'Regular customers with moderate volume'}
+                  {tierName === 'Silver' && 'Standard pricing for new customers'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <Label htmlFor={`${tierName}-lbc`}>LBC Test</Label>
+                    {isEditing ? (
+                      <Input
+                        id={`${tierName}-lbc`}
+                        type="number"
+                        value={editingValues.lbc_price}
+                        onChange={(e) => handlePricingUpdate(tierName, 'lbc_price', Number(e.target.value))}
+                        className="w-24 text-right"
+                        disabled={updating}
+                      />
+                    ) : (
+                      <span className="font-medium">₹{tier.lbc_price}</span>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <Label htmlFor={`${tierName}-hpv`}>HPV Test</Label>
+                    {isEditing ? (
+                      <Input
+                        id={`${tierName}-hpv`}
+                        type="number"
+                        value={editingValues.hpv_price}
+                        onChange={(e) => handlePricingUpdate(tierName, 'hpv_price', Number(e.target.value))}
+                        className="w-24 text-right"
+                        disabled={updating}
+                      />
+                    ) : (
+                      <span className="font-medium">₹{tier.hpv_price}</span>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <Label htmlFor={`${tierName}-cotest`}>Co-test</Label>
+                    {isEditing ? (
+                      <Input
+                        id={`${tierName}-cotest`}
+                        type="number"
+                        value={editingValues.co_test_price}
+                        onChange={(e) => handlePricingUpdate(tierName, 'co_test_price', Number(e.target.value))}
+                        className="w-24 text-right"
+                        disabled={updating}
+                      />
+                    ) : (
+                      <span className="font-medium">₹{tier.co_test_price}</span>
+                    )}
+                  </div>
                 </div>
                 
-                <div className="flex justify-between items-center">
-                  <Label htmlFor={`${tier}-hpv`}>HPV Test</Label>
-                  {editingTier === tier ? (
-                    <Input
-                      id={`${tier}-hpv`}
-                      type="number"
-                      value={prices.hpv}
-                      onChange={(e) => handlePricingUpdate(tier, 'hpv', Number(e.target.value))}
-                      className="w-24 text-right"
-                    />
-                  ) : (
-                    <span className="font-medium">₹{prices.hpv}</span>
-                  )}
-                </div>
+                {isEditing && (
+                  <div className="flex space-x-2 pt-2">
+                    <Button 
+                      size="sm" 
+                      className="flex-1" 
+                      onClick={() => handleSave(tierName)}
+                      disabled={updating}
+                    >
+                      {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Changes'}
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => setEditingTier(null)}
+                      disabled={updating}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
                 
-                <div className="flex justify-between items-center">
-                  <Label htmlFor={`${tier}-cotest`}>Co-test</Label>
-                  {editingTier === tier ? (
-                    <Input
-                      id={`${tier}-cotest`}
-                      type="number"
-                      value={prices.cotest}
-                      onChange={(e) => handlePricingUpdate(tier, 'cotest', Number(e.target.value))}
-                      className="w-24 text-right"
-                    />
-                  ) : (
-                    <span className="font-medium">₹{prices.cotest}</span>
-                  )}
+                <div className="pt-2 border-t">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">Savings vs Silver</span>
+                    <Badge variant={
+                      tierName === 'Platinum' ? 'default' : 
+                      tierName === 'Gold' ? 'secondary' : 'outline'
+                    }>
+                      {getSavingsPercentage(tierName)}
+                    </Badge>
+                  </div>
                 </div>
-              </div>
-              
-              {editingTier === tier && (
-                <div className="flex space-x-2 pt-2">
-                  <Button size="sm" className="flex-1">Save Changes</Button>
-                  <Button size="sm" variant="outline" onClick={() => setEditingTier(null)}>Cancel</Button>
-                </div>
-              )}
-              
-              <div className="pt-2 border-t">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Savings vs Silver</span>
-                  {tier === 'Platinum' && <Badge variant="default">40% off</Badge>}
-                  {tier === 'Gold' && <Badge variant="secondary">20% off</Badge>}
-                  {tier === 'Silver' && <Badge variant="outline">Standard</Badge>}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Card>
@@ -135,25 +224,31 @@ const PricingTiers = () => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
-              <p className="text-2xl font-bold text-purple-600">23</p>
+              <p className="text-2xl font-bold text-purple-600">{getCustomerCountByTier('Platinum')}</p>
               <p className="text-sm text-gray-600">Platinum Customers</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-yellow-600">67</p>
+              <p className="text-2xl font-bold text-yellow-600">{getCustomerCountByTier('Gold')}</p>
               <p className="text-sm text-gray-600">Gold Customers</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-gray-600">145</p>
+              <p className="text-2xl font-bold text-gray-600">{getCustomerCountByTier('Silver')}</p>
               <p className="text-sm text-gray-600">Silver Customers</p>
             </div>
           </div>
           
           <div className="mt-6 space-y-2">
-            <h4 className="font-medium">Recent Pricing Updates</h4>
+            <h4 className="font-medium">Customer Distribution</h4>
             <div className="space-y-1 text-sm text-gray-600">
-              <p>• Gold tier LBC pricing updated to ₹800 (2 days ago)</p>
-              <p>• Platinum tier co-test discount increased to 40% (1 week ago)</p>
-              <p>• Silver tier HPV pricing adjusted to ₹1500 (2 weeks ago)</p>
+              <p>• Total customers across all tiers: {customers.length}</p>
+              <p>• Most popular tier: {customers.length > 0 ? 
+                Object.entries(
+                  customers.reduce((acc, customer) => {
+                    acc[customer.tier] = (acc[customer.tier] || 0) + 1;
+                    return acc;
+                  }, {} as Record<string, number>)
+                ).sort(([,a], [,b]) => b - a)[0]?.[0] || 'None'
+                : 'None'}</p>
             </div>
           </div>
         </CardContent>
