@@ -5,6 +5,8 @@ export interface User {
   email: string;
   role: 'admin' | 'accession' | 'technician' | 'pathologist' | 'customer';
   lab_location?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Sample {
@@ -18,6 +20,8 @@ export interface Sample {
   lab_id: string;
   assigned_technician?: string;
   assigned_pathologist?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Customer {
@@ -27,6 +31,8 @@ export interface Customer {
   tier: 'Platinum' | 'Gold' | 'Silver';
   email: string;
   location: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface PricingTier {
@@ -35,4 +41,6 @@ export interface PricingTier {
   lbc_price: number;
   hpv_price: number;
   co_test_price: number;
+  created_at?: string;
+  updated_at?: string;
 }
