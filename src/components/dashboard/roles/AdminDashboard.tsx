@@ -1,10 +1,10 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, FileText, Settings, CreditCard } from "lucide-react";
 import StatsCards from "../StatsCards";
 import UserManagement from "../admin/UserManagement";
 import CustomerManagement from "../admin/CustomerManagement";
 import PricingTiers from "../admin/PricingTiers";
+import LabManagement from "../admin/LabManagement";
 
 interface AdminDashboardProps {
   currentView: string;
@@ -21,6 +21,10 @@ const AdminDashboard = ({ currentView }: AdminDashboardProps) => {
 
   if (currentView === "pricing") {
     return <PricingTiers />;
+  }
+
+  if (currentView === "labs") {
+    return <LabManagement />;
   }
 
   if (currentView === "reports") {

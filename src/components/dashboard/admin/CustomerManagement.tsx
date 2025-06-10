@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,29 +7,144 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, User } from "lucide-react";
+import { Plus, Search, User, Loader2, Trash2, Edit2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { Customer } from "@/types/user";
 
 const CustomerManagement = () => {
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
   const [newCustomer, setNewCustomer] = useState({
     name: "",
     contact: "",
     email: "",
-    tier: "",
+    tier: "" as Customer['tier'] | "",
     location: ""
   });
 
-  const mockCustomers = [
-    { id: "1", name: "Apollo Hospitals", contact: "+91-98765-43210", email: "lab@apollo.com", tier: "Platinum", location: "Mumbai", samples: 145 },
-    { id: "2", name: "Max Healthcare", contact: "+91-98765-43211", email: "samples@max.com", tier: "Gold", location: "Delhi", samples: 89 },
-    { id: "3", name: "Fortis Hospital", contact: "+91-98765-43212", email: "lab@fortis.com", tier: "Gold", location: "Bangalore", samples: 67 },
-    { id: "4", name: "AIIMS Delhi", contact: "+91-98765-43213", email: "pathology@aiims.edu", tier: "Silver", location: "Delhi", samples: 234 },
-  ];
+  const fetchCustomers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setCustomers(data || []);
+    } catch (error: any) {
+      toast.error(`Failed to fetch customers: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  const handleCreateCustomer = async () => {
+    if (!newCustomer.name || !newCustomer.contact || !newCustomer.email || !newCustomer.tier || !newCustomer.location) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .insert({
+          name: newCustomer.name,
+          contact: newCustomer.contact,
+          email: newCustomer.email,
+          tier: newCustomer.tier,
+          location: newCustomer.location
+        });
+
+      if (error) throw error;
+
+      toast.success("Customer created successfully");
+      setNewCustomer({ name: "", contact: "", email: "", tier: "", location: "" });
+      setIsDialogOpen(false);
+      fetchCustomers();
+    } catch (error: any) {
+      toast.error(`Failed to create customer: ${error.message}`);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleUpdateCustomer = async () => {
+    if (!editingCustomer) return;
+
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .update({
+          name: editingCustomer.name,
+          contact: editingCustomer.contact,
+          email: editingCustomer.email,
+          tier: editingCustomer.tier,
+          location: editingCustomer.location
+        })
+        .eq('id', editingCustomer.id);
+
+      if (error) throw error;
+
+      toast.success("Customer updated successfully");
+      setEditingCustomer(null);
+      fetchCustomers();
+    } catch (error: any) {
+      toast.error(`Failed to update customer: ${error.message}`);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleDeleteCustomer = async (customerId: string) => {
+    if (!confirm("Are you sure you want to delete this customer?")) return;
+
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', customerId);
+
+      if (error) throw error;
+
+      toast.success("Customer deleted successfully");
+      fetchCustomers();
+    } catch (error: any) {
+      toast.error(`Failed to delete customer: ${error.message}`);
+    }
+  };
+
+  const filteredCustomers = customers.filter(customer =>
+    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.location.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Customer Management</h2>
-        <Dialog>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
               <Plus className="h-4 w-4 mr-2" />
@@ -74,7 +189,7 @@ const CustomerManagement = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="tier">Pricing Tier</Label>
-                <Select value={newCustomer.tier} onValueChange={(value) => setNewCustomer({...newCustomer, tier: value})}>
+                <Select value={newCustomer.tier} onValueChange={(value: Customer['tier']) => setNewCustomer({...newCustomer, tier: value})}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select pricing tier" />
                   </SelectTrigger>
@@ -94,7 +209,14 @@ const CustomerManagement = () => {
                   placeholder="Enter city/location"
                 />
               </div>
-              <Button className="w-full">Create Customer Account</Button>
+              <Button 
+                className="w-full" 
+                onClick={handleCreateCustomer}
+                disabled={creating}
+              >
+                {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Create Customer
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -104,13 +226,18 @@ const CustomerManagement = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <User className="h-5 w-5" />
-            <span>All Customers</span>
+            <span>All Customers ({filteredCustomers.length})</span>
           </CardTitle>
           <CardDescription>Manage customer accounts and pricing tiers</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center space-x-2 mb-6">
-            <Input placeholder="Search customers..." className="max-w-sm" />
+            <Input 
+              placeholder="Search customers..." 
+              className="max-w-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
             <Button variant="outline">
               <Search className="h-4 w-4" />
             </Button>
@@ -124,26 +251,115 @@ const CustomerManagement = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tier</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Samples</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {mockCustomers.map((customer) => (
+                {filteredCustomers.map((customer) => (
                   <tr key={customer.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{customer.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{customer.contact}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{customer.email}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant={customer.tier === 'Platinum' ? 'default' : customer.tier === 'Gold' ? 'secondary' : 'outline'}>
-                        {customer.tier}
-                      </Badge>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {editingCustomer?.id === customer.id ? (
+                        <Input
+                          value={editingCustomer.name}
+                          onChange={(e) => setEditingCustomer({...editingCustomer, name: e.target.value})}
+                          className="w-full"
+                        />
+                      ) : (
+                        customer.name
+                      )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{customer.location}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{customer.samples}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {editingCustomer?.id === customer.id ? (
+                        <Input
+                          value={editingCustomer.contact}
+                          onChange={(e) => setEditingCustomer({...editingCustomer, contact: e.target.value})}
+                          className="w-full"
+                        />
+                      ) : (
+                        customer.contact
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {editingCustomer?.id === customer.id ? (
+                        <Input
+                          value={editingCustomer.email}
+                          onChange={(e) => setEditingCustomer({...editingCustomer, email: e.target.value})}
+                          className="w-full"
+                        />
+                      ) : (
+                        customer.email
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {editingCustomer?.id === customer.id ? (
+                        <Select 
+                          value={editingCustomer.tier} 
+                          onValueChange={(value: Customer['tier']) => setEditingCustomer({...editingCustomer, tier: value})}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Platinum">Platinum</SelectItem>
+                            <SelectItem value="Gold">Gold</SelectItem>
+                            <SelectItem value="Silver">Silver</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge variant={customer.tier === 'Platinum' ? 'default' : customer.tier === 'Gold' ? 'secondary' : 'outline'}>
+                          {customer.tier}
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {editingCustomer?.id === customer.id ? (
+                        <Input
+                          value={editingCustomer.location}
+                          onChange={(e) => setEditingCustomer({...editingCustomer, location: e.target.value})}
+                          className="w-full"
+                        />
+                      ) : (
+                        customer.location
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                      <Button variant="outline" size="sm">Edit</Button>
-                      <Button variant="outline" size="sm">View Details</Button>
+                      {editingCustomer?.id === customer.id ? (
+                        <>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={handleUpdateCustomer}
+                            disabled={updating}
+                          >
+                            {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => setEditingCustomer(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setEditingCustomer(customer)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleDeleteCustomer(customer.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
