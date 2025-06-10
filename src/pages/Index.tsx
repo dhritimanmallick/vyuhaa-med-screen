@@ -9,7 +9,7 @@ const Index = () => {
   return (
     <AuthGuard>
       <div className="min-h-screen bg-gray-50">
-        <Dashboard user={user!} onLogout={signOut} />
+        <Dashboard user={user} onLogout={signOut} />
       </div>
     </AuthGuard>
   );

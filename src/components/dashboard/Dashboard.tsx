@@ -8,14 +8,27 @@ import TechnicianDashboard from "./roles/TechnicianDashboard";
 import PathologistDashboard from "./roles/PathologistDashboard";
 import CustomerDashboard from "./roles/CustomerDashboard";
 import TopBar from "./TopBar";
+import { Loader2 } from "lucide-react";
 
 interface DashboardProps {
-  user: User;
+  user: User | null;
   onLogout: () => void;
 }
 
 const Dashboard = ({ user, onLogout }: DashboardProps) => {
   const [currentView, setCurrentView] = useState("dashboard");
+
+  // Show loading if user is null
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <p className="text-gray-600">Loading user profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   const renderContent = () => {
     switch (user.role) {

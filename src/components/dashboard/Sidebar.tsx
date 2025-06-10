@@ -22,6 +22,11 @@ interface SidebarProps {
 
 const Sidebar = ({ user, currentView, setCurrentView }: SidebarProps) => {
   const getMenuItems = () => {
+    // Add safety check for user.role
+    if (!user || !user.role) {
+      return [];
+    }
+
     switch (user.role) {
       case 'admin':
         return [
