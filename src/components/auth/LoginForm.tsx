@@ -34,16 +34,24 @@ const LoginForm = () => {
     }
   };
 
-  // Quick login buttons for testing
+  // Test user accounts with secure password
+  const testAccounts = [
+    { email: "admin@vyuhaa.com", label: "Admin", role: "admin" },
+    { email: "pathologist@vyuhaa.com", label: "Pathologist", role: "pathologist" },
+    { email: "accession@vyuhaa.com", label: "Accession Team", role: "accession" },
+    { email: "technician@vyuhaa.com", label: "Technician", role: "technician" },
+    { email: "customer@vyuhaa.com", label: "Customer", role: "customer" }
+  ];
+
   const quickLogin = async (userEmail: string) => {
     setEmail(userEmail);
-    setPassword("Password@1");
+    setPassword("SecureVyuhaa2024!");
     setError("");
     setIsLoading(true);
     
     try {
       console.log('Quick login attempt for:', userEmail);
-      await signIn(userEmail, "Password@1");
+      await signIn(userEmail, "SecureVyuhaa2024!");
       console.log('Quick login successful, redirecting...');
       window.location.href = '/';
     } catch (error: any) {
@@ -111,54 +119,21 @@ const LoginForm = () => {
         <div className="mt-6 pt-6 border-t border-gray-200">
           <p className="text-sm text-gray-600 mb-3 text-center">Quick Login (Testing):</p>
           <div className="space-y-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full text-xs"
-              onClick={() => quickLogin("admin@vyuhaa.com")}
-              disabled={isLoading}
-            >
-              Admin
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full text-xs"
-              onClick={() => quickLogin("pathologist@vyuhaa.com")}
-              disabled={isLoading}
-            >
-              Pathologist
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full text-xs"
-              onClick={() => quickLogin("accession@vyuhaa.com")}
-              disabled={isLoading}
-            >
-              Accession Team
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full text-xs"
-              onClick={() => quickLogin("technician@vyuhaa.com")}
-              disabled={isLoading}
-            >
-              Technician
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full text-xs"
-              onClick={() => quickLogin("customer@vyuhaa.com")}
-              disabled={isLoading}
-            >
-              Customer
-            </Button>
+            {testAccounts.map((account) => (
+              <Button 
+                key={account.email}
+                variant="outline" 
+                size="sm" 
+                className="w-full text-xs"
+                onClick={() => quickLogin(account.email)}
+                disabled={isLoading}
+              >
+                {account.label}
+              </Button>
+            ))}
           </div>
           <p className="text-xs text-gray-500 mt-2 text-center">
-            All test accounts use password: Password@1
+            All test accounts use password: SecureVyuhaa2024!
           </p>
         </div>
       </CardContent>
