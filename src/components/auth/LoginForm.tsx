@@ -33,13 +33,13 @@ const LoginForm = () => {
     }
   };
 
-  // Simple test accounts with easy passwords
+  // Updated test accounts with new simplified passwords
   const testAccounts = [
-    { email: "admin@vyuhaa.com", password: "admin123", label: "Admin", role: "admin" },
-    { email: "pathologist@vyuhaa.com", password: "path123", label: "Pathologist", role: "pathologist" },
-    { email: "accession@vyuhaa.com", password: "acc123", label: "Accession Team", role: "accession" },
-    { email: "technician@vyuhaa.com", password: "tech123", label: "Technician", role: "technician" },
-    { email: "customer@vyuhaa.com", password: "cust123", label: "Customer", role: "customer" }
+    { email: "admin@vyuhaa.com", password: "Password@1", label: "Admin", role: "admin" },
+    { email: "pathologist@vyuhaa.com", password: "Password@1", label: "Pathologist", role: "pathologist" },
+    { email: "accession@vyuhaa.com", password: "Password@1", label: "Accession Team", role: "accession" },
+    { email: "technician@vyuhaa.com", password: "Password@1", label: "Technician", role: "technician" },
+    { email: "customer@vyuhaa.com", password: "Password@1", label: "Customer", role: "customer" }
   ];
 
   const quickLogin = async (userEmail: string, userPassword: string) => {
@@ -127,9 +127,12 @@ const LoginForm = () => {
                 onClick={() => quickLogin(account.email, account.password)}
                 disabled={isLoading}
               >
-                {account.label} ({account.password})
+                {account.label} (Password@1)
               </Button>
             ))}
+          </div>
+          <div className="mt-3 text-xs text-gray-500 text-center">
+            All test accounts use password: Password@1
           </div>
         </div>
       </CardContent>
