@@ -9,6 +9,36 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          details: Json | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          details?: Json | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           contact: string
@@ -38,6 +68,36 @@ export type Database = {
           location?: string
           name?: string
           tier?: Database["public"]["Enums"]["customer_tier"]
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      lab_locations: {
+        Row: {
+          active: boolean | null
+          address: string | null
+          contact_info: Json | null
+          created_at: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          address?: string | null
+          contact_info?: Json | null
+          created_at?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          address?: string | null
+          contact_info?: Json | null
+          created_at?: string | null
+          id?: string
+          name?: string
           updated_at?: string | null
         }
         Relationships: []
@@ -219,9 +279,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_random_password: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      log_audit_event: {
+        Args: {
+          p_action: string
+          p_entity_type: string
+          p_entity_id?: string
+          p_details?: Json
+        }
+        Returns: undefined
       }
     }
     Enums: {

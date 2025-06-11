@@ -48,6 +48,19 @@ const UserManagement = () => {
     fetchUsers();
   }, []);
 
+  const logAuditEvent = async (action: string, entityType: string, entityId?: string, details?: any) => {
+    try {
+      await supabase.rpc('log_audit_event', {
+        p_action: action,
+        p_entity_type: entityType,
+        p_entity_id: entityId,
+        p_details: details
+      });
+    } catch (error) {
+      console.error('Failed to log audit event:', error);
+    }
+  };
+
   const handleCreateUser = async () => {
     if (!newUser.name || !newUser.email || !newUser.role) {
       toast.error("Please fill in all required fields");
@@ -56,24 +69,14 @@ const UserManagement = () => {
 
     setCreating(true);
     try {
-      // First, create the auth user
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: newUser.email,
-        password: 'TempPassword123!', // You might want to generate a random password
-        email_confirm: true,
-        user_metadata: {
-          name: newUser.name,
-          role: newUser.role
-        }
-      });
-
-      if (authError) throw authError;
-
-      // Then create the user profile
+      // Generate a temporary user ID for demo purposes
+      // In a real app, you'd create this through proper user invitation flow
+      const tempUserId = crypto.randomUUID();
+      
       const { error: profileError } = await supabase
         .from('users')
         .insert({
-          id: authData.user.id,
+          id: tempUserId,
           name: newUser.name,
           email: newUser.email,
           role: newUser.role,
@@ -82,7 +85,13 @@ const UserManagement = () => {
 
       if (profileError) throw profileError;
 
-      toast.success("User created successfully");
+      await logAuditEvent('User Created', 'users', tempUserId, {
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role
+      });
+
+      toast.success("User profile created successfully. User will need to sign up separately.");
       setNewUser({ name: "", email: "", role: "", lab_location: "" });
       setIsDialogOpen(false);
       fetchUsers();
@@ -109,6 +118,12 @@ const UserManagement = () => {
 
       if (error) throw error;
 
+      await logAuditEvent('User Updated', 'users', editingUser.id, {
+        name: editingUser.name,
+        role: editingUser.role,
+        lab_location: editingUser.lab_location
+      });
+
       toast.success("User updated successfully");
       setEditingUser(null);
       fetchUsers();
@@ -129,6 +144,8 @@ const UserManagement = () => {
         .eq('id', userId);
 
       if (error) throw error;
+
+      await logAuditEvent('User Deleted', 'users', userId);
 
       toast.success("User deleted successfully");
       fetchUsers();
@@ -166,7 +183,7 @@ const UserManagement = () => {
             <DialogHeader>
               <DialogTitle>Add New User</DialogTitle>
               <DialogDescription>
-                Create a new user account and assign role and lab location.
+                Create a new user profile. The user will need to sign up separately using their email.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -219,7 +236,7 @@ const UserManagement = () => {
                 disabled={creating}
               >
                 {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Create User
+                Create User Profile
               </Button>
             </div>
           </DialogContent>

@@ -1,16 +1,65 @@
+
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, FileText, Settings, CreditCard } from "lucide-react";
+import { Users, FileText, Settings, CreditCard, Loader2 } from "lucide-react";
 import StatsCards from "../StatsCards";
 import UserManagement from "../admin/UserManagement";
 import CustomerManagement from "../admin/CustomerManagement";
 import PricingTiers from "../admin/PricingTiers";
 import LabManagement from "../admin/LabManagement";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AdminDashboardProps {
   currentView: string;
 }
 
+interface AuditLog {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  details: any;
+  created_at: string;
+  users: {
+    name: string;
+    email: string;
+  };
+}
+
 const AdminDashboard = ({ currentView }: AdminDashboardProps) => {
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+
+  const fetchAuditLogs = async () => {
+    setAuditLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select(`
+          *,
+          users:user_id (
+            name,
+            email
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      setAuditLogs(data || []);
+    } catch (error: any) {
+      console.error('Failed to fetch audit logs:', error);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentView === "audit") {
+      fetchAuditLogs();
+    }
+  }, [currentView]);
+
   if (currentView === "users") {
     return <UserManagement />;
   }
@@ -70,24 +119,48 @@ const AdminDashboard = ({ currentView }: AdminDashboardProps) => {
   if (currentView === "audit") {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-gray-900">Audit Logs</h2>
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-gray-900">Audit Logs</h2>
+          <button
+            onClick={fetchAuditLogs}
+            className="text-blue-600 hover:text-blue-700 text-sm"
+            disabled={auditLoading}
+          >
+            {auditLoading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
         <Card>
           <CardContent className="p-6">
-            <div className="space-y-4">
-              {[
-                { action: "User Created", entity: "technician@lab.com", user: "admin@lab.com", time: "2 hours ago" },
-                { action: "Sample Processed", entity: "VYU-001234", user: "tech@lab.com", time: "3 hours ago" },
-                { action: "Pricing Updated", entity: "Platinum Tier", user: "admin@lab.com", time: "1 day ago" },
-              ].map((log, index) => (
-                <div key={index} className="flex justify-between items-center py-2 border-b">
-                  <div>
-                    <p className="font-medium">{log.action}</p>
-                    <p className="text-sm text-gray-600">{log.entity} by {log.user}</p>
-                  </div>
-                  <p className="text-sm text-gray-500">{log.time}</p>
-                </div>
-              ))}
-            </div>
+            {auditLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {auditLogs.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No audit logs found</p>
+                ) : (
+                  auditLogs.map((log) => (
+                    <div key={log.id} className="flex justify-between items-center py-2 border-b">
+                      <div>
+                        <p className="font-medium">{log.action}</p>
+                        <p className="text-sm text-gray-600">
+                          {log.entity_type} {log.entity_id ? `(${log.entity_id.slice(0, 8)}...)` : ''} by {log.users?.name || 'Unknown User'}
+                        </p>
+                        {log.details && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            {JSON.stringify(log.details, null, 0).slice(0, 100)}...
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500">
+                        {new Date(log.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

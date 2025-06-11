@@ -5,98 +5,107 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, Building, Loader2, Trash2, Edit2, MapPin, Phone, Mail } from "lucide-react";
+import { Plus, MapPin, Phone, Mail, Edit2, Trash2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-interface Lab {
+interface LabLocation {
   id: string;
   name: string;
-  location: string;
-  contact: string;
-  email: string;
-  status: 'active' | 'inactive';
-  created_at?: string;
-  updated_at?: string;
+  address: string;
+  contact_info: {
+    phone?: string;
+    email?: string;
+  };
+  active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 const LabManagement = () => {
-  const [labs, setLabs] = useState<Lab[]>([]);
+  const [labs, setLabs] = useState<LabLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [editingLab, setEditingLab] = useState<Lab | null>(null);
+  const [editingLab, setEditingLab] = useState<LabLocation | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
+
   const [newLab, setNewLab] = useState({
     name: "",
-    location: "",
-    contact: "",
+    address: "",
+    phone: "",
     email: "",
-    status: "active" as Lab['status']
+    active: true
   });
 
-  // For now, using mock data since we don't have a labs table
-  // In a real implementation, you would create a labs table in Supabase
-  const mockLabs: Lab[] = [
-    {
-      id: "1",
-      name: "Mumbai Central Lab",
-      location: "Mumbai, Maharashtra",
-      contact: "+91-98765-43210",
-      email: "mumbai@vyuhaa.com",
-      status: "active",
-      created_at: new Date().toISOString()
-    },
-    {
-      id: "2", 
-      name: "Delhi North Lab",
-      location: "New Delhi, Delhi",
-      contact: "+91-98765-43211",
-      email: "delhi@vyuhaa.com",
-      status: "active",
-      created_at: new Date().toISOString()
-    },
-    {
-      id: "3",
-      name: "Bangalore Central Lab",
-      location: "Bangalore, Karnataka", 
-      contact: "+91-98765-43212",
-      email: "bangalore@vyuhaa.com",
-      status: "active",
-      created_at: new Date().toISOString()
+  const fetchLabs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('lab_locations')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setLabs(data || []);
+    } catch (error: any) {
+      toast.error(`Failed to fetch lab locations: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
   useEffect(() => {
-    // Simulate loading
-    setTimeout(() => {
-      setLabs(mockLabs);
-      setLoading(false);
-    }, 1000);
+    fetchLabs();
   }, []);
 
+  const logAuditEvent = async (action: string, entityType: string, entityId?: string, details?: any) => {
+    try {
+      await supabase.rpc('log_audit_event', {
+        p_action: action,
+        p_entity_type: entityType,
+        p_entity_id: entityId,
+        p_details: details
+      });
+    } catch (error) {
+      console.error('Failed to log audit event:', error);
+    }
+  };
+
   const handleCreateLab = async () => {
-    if (!newLab.name || !newLab.location || !newLab.contact || !newLab.email) {
-      toast.error("Please fill in all fields");
+    if (!newLab.name || !newLab.address) {
+      toast.error("Please fill in name and address");
       return;
     }
 
     setCreating(true);
     try {
-      // Simulate creation - in real app, this would be a Supabase insert
-      const newLabEntry: Lab = {
-        id: Date.now().toString(),
-        ...newLab,
-        created_at: new Date().toISOString()
-      };
-      
-      setLabs(prev => [newLabEntry, ...prev]);
-      toast.success("Lab created successfully");
-      setNewLab({ name: "", location: "", contact: "", email: "", status: "active" });
+      const { data, error } = await supabase
+        .from('lab_locations')
+        .insert({
+          name: newLab.name,
+          address: newLab.address,
+          contact_info: {
+            phone: newLab.phone || null,
+            email: newLab.email || null
+          },
+          active: newLab.active
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await logAuditEvent('Lab Created', 'lab_locations', data.id, {
+        name: newLab.name,
+        address: newLab.address
+      });
+
+      toast.success("Lab location created successfully");
+      setNewLab({ name: "", address: "", phone: "", email: "", active: true });
       setIsDialogOpen(false);
+      fetchLabs();
     } catch (error: any) {
       toast.error(`Failed to create lab: ${error.message}`);
     } finally {
@@ -109,13 +118,26 @@ const LabManagement = () => {
 
     setUpdating(true);
     try {
-      // Simulate update - in real app, this would be a Supabase update
-      setLabs(prev => prev.map(lab => 
-        lab.id === editingLab.id ? { ...editingLab, updated_at: new Date().toISOString() } : lab
-      ));
-      
-      toast.success("Lab updated successfully");
+      const { error } = await supabase
+        .from('lab_locations')
+        .update({
+          name: editingLab.name,
+          address: editingLab.address,
+          contact_info: editingLab.contact_info,
+          active: editingLab.active
+        })
+        .eq('id', editingLab.id);
+
+      if (error) throw error;
+
+      await logAuditEvent('Lab Updated', 'lab_locations', editingLab.id, {
+        name: editingLab.name,
+        address: editingLab.address
+      });
+
+      toast.success("Lab location updated successfully");
       setEditingLab(null);
+      fetchLabs();
     } catch (error: any) {
       toast.error(`Failed to update lab: ${error.message}`);
     } finally {
@@ -124,22 +146,24 @@ const LabManagement = () => {
   };
 
   const handleDeleteLab = async (labId: string) => {
-    if (!confirm("Are you sure you want to delete this lab?")) return;
+    if (!confirm("Are you sure you want to delete this lab location?")) return;
 
     try {
-      // Simulate deletion - in real app, this would be a Supabase delete
-      setLabs(prev => prev.filter(lab => lab.id !== labId));
-      toast.success("Lab deleted successfully");
+      const { error } = await supabase
+        .from('lab_locations')
+        .delete()
+        .eq('id', labId);
+
+      if (error) throw error;
+
+      await logAuditEvent('Lab Deleted', 'lab_locations', labId);
+
+      toast.success("Lab location deleted successfully");
+      fetchLabs();
     } catch (error: any) {
       toast.error(`Failed to delete lab: ${error.message}`);
     }
   };
-
-  const filteredLabs = labs.filter(lab =>
-    lab.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lab.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lab.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   if (loading) {
     return (
@@ -160,39 +184,39 @@ const LabManagement = () => {
               Add New Lab
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Add New Lab</DialogTitle>
+              <DialogTitle>Add New Lab Location</DialogTitle>
               <DialogDescription>
-                Register a new laboratory location.
+                Create a new lab location with contact information.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="labName">Lab Name</Label>
+                <Label htmlFor="name">Lab Name *</Label>
                 <Input
-                  id="labName"
+                  id="name"
                   value={newLab.name}
                   onChange={(e) => setNewLab({...newLab, name: e.target.value})}
                   placeholder="Enter lab name"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
+                <Label htmlFor="address">Address *</Label>
                 <Input
-                  id="location"
-                  value={newLab.location}
-                  onChange={(e) => setNewLab({...newLab, location: e.target.value})}
-                  placeholder="City, State"
+                  id="address"
+                  value={newLab.address}
+                  onChange={(e) => setNewLab({...newLab, address: e.target.value})}
+                  placeholder="Enter lab address"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="contact">Contact Number</Label>
+                <Label htmlFor="phone">Phone</Label>
                 <Input
-                  id="contact"
-                  value={newLab.contact}
-                  onChange={(e) => setNewLab({...newLab, contact: e.target.value})}
-                  placeholder="+91-XXXXX-XXXXX"
+                  id="phone"
+                  value={newLab.phone}
+                  onChange={(e) => setNewLab({...newLab, phone: e.target.value})}
+                  placeholder="Enter phone number"
                 />
               </div>
               <div className="space-y-2">
@@ -202,8 +226,16 @@ const LabManagement = () => {
                   type="email"
                   value={newLab.email}
                   onChange={(e) => setNewLab({...newLab, email: e.target.value})}
-                  placeholder="lab@vyuhaa.com"
+                  placeholder="Enter email address"
                 />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="active"
+                  checked={newLab.active}
+                  onCheckedChange={(checked) => setNewLab({...newLab, active: checked})}
+                />
+                <Label htmlFor="active">Active</Label>
               </div>
               <Button 
                 className="w-full" 
@@ -219,101 +251,120 @@ const LabManagement = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredLabs.map((lab) => (
-          <Card key={lab.id} className="hover:shadow-lg transition-shadow">
+        {labs.map((lab) => (
+          <Card key={lab.id} className={`${!lab.active ? 'opacity-60' : ''}`}>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Building className="h-5 w-5" />
-                  <span className="truncate">{lab.name}</span>
+                  <MapPin className="h-5 w-5" />
+                  <span>{lab.name}</span>
                 </div>
-                <Badge variant={lab.status === 'active' ? 'default' : 'secondary'}>
-                  {lab.status}
-                </Badge>
+                <div className="flex items-center space-x-2">
+                  <Badge variant={lab.active ? "default" : "secondary"}>
+                    {lab.active ? "Active" : "Inactive"}
+                  </Badge>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => setEditingLab(lab)}
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleDeleteLab(lab.id)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <MapPin className="h-4 w-4" />
-                <span>{lab.location}</span>
+              <div className="flex items-center space-x-2">
+                <MapPin className="h-4 w-4 text-gray-500" />
+                <span className="text-sm">{lab.address}</span>
               </div>
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <Phone className="h-4 w-4" />
-                <span>{lab.contact}</span>
-              </div>
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <Mail className="h-4 w-4" />
-                <span>{lab.email}</span>
-              </div>
-              <div className="flex space-x-2 pt-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="flex-1"
-                  onClick={() => setEditingLab(lab)}
-                >
-                  <Edit2 className="h-4 w-4 mr-1" />
-                  Edit
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => handleDeleteLab(lab.id)}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+              {lab.contact_info?.phone && (
+                <div className="flex items-center space-x-2">
+                  <Phone className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm">{lab.contact_info.phone}</span>
+                </div>
+              )}
+              {lab.contact_info?.email && (
+                <div className="flex items-center space-x-2">
+                  <Mail className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm">{lab.contact_info.email}</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Edit Dialog */}
       {editingLab && (
         <Dialog open={!!editingLab} onOpenChange={() => setEditingLab(null)}>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Edit Lab</DialogTitle>
+              <DialogTitle>Edit Lab Location</DialogTitle>
               <DialogDescription>
-                Update laboratory information.
+                Update lab location information.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="editLabName">Lab Name</Label>
+                <Label htmlFor="edit-name">Lab Name *</Label>
                 <Input
-                  id="editLabName"
+                  id="edit-name"
                   value={editingLab.name}
                   onChange={(e) => setEditingLab({...editingLab, name: e.target.value})}
+                  placeholder="Enter lab name"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="editLocation">Location</Label>
+                <Label htmlFor="edit-address">Address *</Label>
                 <Input
-                  id="editLocation"
-                  value={editingLab.location}
-                  onChange={(e) => setEditingLab({...editingLab, location: e.target.value})}
+                  id="edit-address"
+                  value={editingLab.address}
+                  onChange={(e) => setEditingLab({...editingLab, address: e.target.value})}
+                  placeholder="Enter lab address"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="editContact">Contact Number</Label>
+                <Label htmlFor="edit-phone">Phone</Label>
                 <Input
-                  id="editContact"
-                  value={editingLab.contact}
-                  onChange={(e) => setEditingLab({...editingLab, contact: e.target.value})}
+                  id="edit-phone"
+                  value={editingLab.contact_info?.phone || ''}
+                  onChange={(e) => setEditingLab({
+                    ...editingLab, 
+                    contact_info: { ...editingLab.contact_info, phone: e.target.value }
+                  })}
+                  placeholder="Enter phone number"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="editEmail">Email</Label>
+                <Label htmlFor="edit-email">Email</Label>
                 <Input
-                  id="editEmail"
+                  id="edit-email"
                   type="email"
-                  value={editingLab.email}
-                  onChange={(e) => setEditingLab({...editingLab, email: e.target.value})}
+                  value={editingLab.contact_info?.email || ''}
+                  onChange={(e) => setEditingLab({
+                    ...editingLab, 
+                    contact_info: { ...editingLab.contact_info, email: e.target.value }
+                  })}
+                  placeholder="Enter email address"
                 />
               </div>
-              <div className="flex space-x-2">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="edit-active"
+                  checked={editingLab.active}
+                  onCheckedChange={(checked) => setEditingLab({...editingLab, active: checked})}
+                />
+                <Label htmlFor="edit-active">Active</Label>
+              </div>
+              <div className="flex space-x-2 pt-2">
                 <Button 
                   className="flex-1" 
                   onClick={handleUpdateLab}
@@ -325,6 +376,7 @@ const LabManagement = () => {
                 <Button 
                   variant="outline" 
                   onClick={() => setEditingLab(null)}
+                  disabled={updating}
                 >
                   Cancel
                 </Button>
@@ -333,23 +385,6 @@ const LabManagement = () => {
           </DialogContent>
         </Dialog>
       )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Search className="h-5 w-5" />
-            <span>Search Labs</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Input 
-            placeholder="Search by name, location, or email..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-md"
-          />
-        </CardContent>
-      </Card>
     </div>
   );
 };
