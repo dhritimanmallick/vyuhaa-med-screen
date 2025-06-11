@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { User as AppUser } from '@/types/user';
+import { cleanupAuthState } from '@/utils/authCleanup';
 
 export const useAuth = () => {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -11,19 +12,28 @@ export const useAuth = () => {
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await fetchUserProfile(session.user);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await fetchUserProfile(session.user);
+        }
+      } catch (error) {
+        console.error('Error getting initial session:', error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     getInitialSession();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session?.user?.email);
+      
       if (event === 'SIGNED_IN' && session?.user) {
-        await fetchUserProfile(session.user);
+        setTimeout(() => {
+          fetchUserProfile(session.user);
+        }, 0);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
       }
@@ -35,6 +45,8 @@ export const useAuth = () => {
 
   const fetchUserProfile = async (authUser: User) => {
     try {
+      console.log('Fetching profile for user:', authUser.email);
+      
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -47,7 +59,10 @@ export const useAuth = () => {
       }
 
       if (data) {
+        console.log('User profile found:', data);
         setUser(data);
+      } else {
+        console.log('No user profile found for:', authUser.email);
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -55,13 +70,35 @@ export const useAuth = () => {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      // Clean up any existing auth state
+      cleanupAuthState();
+      
+      // Attempt to sign out any existing session
+      try {
+        await supabase.auth.signOut({ scope: 'global' });
+      } catch (err) {
+        console.log('Sign out error (expected):', err);
+      }
 
-    if (error) throw error;
-    return data;
+      console.log('Attempting to sign in with:', email);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error('Sign in error:', error);
+        throw error;
+      }
+
+      console.log('Sign in successful:', data.user?.email);
+      return data;
+    } catch (error) {
+      console.error('Sign in failed:', error);
+      throw error;
+    }
   };
 
   const signUp = async (email: string, password: string, userData: { name: string; role: string }) => {
@@ -78,9 +115,18 @@ export const useAuth = () => {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    setUser(null);
+    try {
+      cleanupAuthState();
+      const { error } = await supabase.auth.signOut({ scope: 'global' });
+      if (error) throw error;
+      setUser(null);
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Sign out error:', error);
+      // Force cleanup even if signOut fails
+      setUser(null);
+      window.location.href = '/';
+    }
   };
 
   return {

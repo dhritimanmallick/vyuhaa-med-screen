@@ -21,9 +21,34 @@ const LoginForm = () => {
     setIsLoading(true);
     
     try {
+      console.log('Login attempt for:', email);
       await signIn(email, password);
+      console.log('Login successful, redirecting...');
+      // Force page reload after successful login
+      window.location.href = '/';
     } catch (error: any) {
-      setError(error.message || "Failed to sign in");
+      console.error('Login error:', error);
+      setError(error.message || "Failed to sign in. Please check your credentials.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Quick login buttons for testing
+  const quickLogin = async (userEmail: string) => {
+    setEmail(userEmail);
+    setPassword("Password@1");
+    setError("");
+    setIsLoading(true);
+    
+    try {
+      console.log('Quick login attempt for:', userEmail);
+      await signIn(userEmail, "Password@1");
+      console.log('Quick login successful, redirecting...');
+      window.location.href = '/';
+    } catch (error: any) {
+      console.error('Quick login error:', error);
+      setError(error.message || "Failed to sign in. Please check your credentials.");
     } finally {
       setIsLoading(false);
     }
@@ -82,6 +107,60 @@ const LoginForm = () => {
             )}
           </Button>
         </form>
+
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <p className="text-sm text-gray-600 mb-3 text-center">Quick Login (Testing):</p>
+          <div className="space-y-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full text-xs"
+              onClick={() => quickLogin("admin@vyuhaa.com")}
+              disabled={isLoading}
+            >
+              Admin
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full text-xs"
+              onClick={() => quickLogin("pathologist@vyuhaa.com")}
+              disabled={isLoading}
+            >
+              Pathologist
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full text-xs"
+              onClick={() => quickLogin("accession@vyuhaa.com")}
+              disabled={isLoading}
+            >
+              Accession Team
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full text-xs"
+              onClick={() => quickLogin("technician@vyuhaa.com")}
+              disabled={isLoading}
+            >
+              Technician
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full text-xs"
+              onClick={() => quickLogin("customer@vyuhaa.com")}
+              disabled={isLoading}
+            >
+              Customer
+            </Button>
+          </div>
+          <p className="text-xs text-gray-500 mt-2 text-center">
+            All test accounts use password: Password@1
+          </p>
+        </div>
       </CardContent>
     </Card>
   );
