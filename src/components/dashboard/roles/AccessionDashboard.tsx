@@ -6,26 +6,95 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { useSamples, useCustomers } from "../../../hooks/useSupabaseData";
 import StatsCards from "../StatsCards";
-import { Upload, Search, Plus } from "lucide-react";
+import { Upload, Search, Plus, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface AccessionDashboardProps {
   currentView: string;
 }
 
 const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
+  const { samples, loading: samplesLoading, error: samplesError } = useSamples();
+  const { customers, loading: customersLoading } = useCustomers();
+  const { toast } = useToast();
+  
   const [newSample, setNewSample] = useState({
     barcode: "",
-    customer: "",
-    testType: "",
-    collectionDate: ""
+    customer_id: "",
+    test_type: "",
+    customer_name: ""
   });
+  const [submitting, setSubmitting] = useState(false);
 
-  const mockSamples = [
-    { id: "VYU-001234", barcode: "VYU-001234", customer: "Apollo Hospital", testType: "LBC", status: "pending", date: "2024-06-09" },
-    { id: "VYU-001235", barcode: "VYU-001235", customer: "Max Healthcare", testType: "HPV", status: "processing", date: "2024-06-09" },
-    { id: "VYU-001236", barcode: "VYU-001236", customer: "Fortis Hospital", testType: "Co-test", status: "review", date: "2024-06-08" },
-  ];
+  const handleSubmitSample = async () => {
+    if (!newSample.barcode || !newSample.customer_id || !newSample.test_type) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const selectedCustomer = customers.find(c => c.id === newSample.customer_id);
+      
+      const { error } = await supabase
+        .from('samples')
+        .insert({
+          barcode: newSample.barcode,
+          customer_id: newSample.customer_id,
+          customer_name: selectedCustomer?.name || '',
+          test_type: newSample.test_type as 'LBC' | 'HPV' | 'Co-test',
+          lab_id: 'VYU-LAB-001',
+          status: 'pending'
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Sample accessioned successfully"
+      });
+
+      setNewSample({
+        barcode: "",
+        customer_id: "",
+        test_type: "",
+        customer_name: ""
+      });
+    } catch (error) {
+      console.error('Error submitting sample:', error);
+      toast({
+        title: "Error",
+        description: "Failed to accession sample",
+        variant: "destructive"
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (samplesLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <span className="ml-2">Loading data...</span>
+      </div>
+    );
+  }
+
+  if (samplesError) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <p className="text-red-600">Error loading data: {samplesError}</p>
+      </div>
+    );
+  }
 
   if (currentView === "add-sample") {
     return (
@@ -52,20 +121,26 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="customer">Customer</Label>
-                <Select value={newSample.customer} onValueChange={(value) => setNewSample({...newSample, customer: value})}>
+                <Select 
+                  value={newSample.customer_id} 
+                  onValueChange={(value) => setNewSample({...newSample, customer_id: value})}
+                  disabled={customersLoading}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select customer" />
+                    <SelectValue placeholder={customersLoading ? "Loading customers..." : "Select customer"} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="apollo">Apollo Hospital</SelectItem>
-                    <SelectItem value="max">Max Healthcare</SelectItem>
-                    <SelectItem value="fortis">Fortis Hospital</SelectItem>
+                    {customers.map((customer) => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="testType">Test Type</Label>
-                <Select value={newSample.testType} onValueChange={(value) => setNewSample({...newSample, testType: value})}>
+                <Select value={newSample.test_type} onValueChange={(value) => setNewSample({...newSample, test_type: value})}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select test type" />
                   </SelectTrigger>
@@ -76,19 +151,23 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="collectionDate">Collection Date</Label>
-                <Input
-                  id="collectionDate"
-                  type="date"
-                  value={newSample.collectionDate}
-                  onChange={(e) => setNewSample({...newSample, collectionDate: e.target.value})}
-                />
-              </div>
             </div>
-            <Button className="w-full bg-blue-600 hover:bg-blue-700">
-              <Plus className="h-4 w-4 mr-2" />
-              Accession Sample
+            <Button 
+              className="w-full bg-blue-600 hover:bg-blue-700" 
+              onClick={handleSubmitSample}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Accessioning...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Accession Sample
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
@@ -100,7 +179,7 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-900">Sample Queue</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Sample Queue ({samples.length})</h2>
           <div className="flex items-center space-x-2">
             <Input placeholder="Search samples..." className="w-64" />
             <Button variant="outline">
@@ -123,22 +202,37 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {mockSamples.map((sample) => (
-                    <tr key={sample.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{sample.barcode}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.customer}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.testType}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={sample.status === 'pending' ? 'secondary' : sample.status === 'processing' ? 'default' : 'outline'}>
-                          {sample.status}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.date}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <Button variant="outline" size="sm">View</Button>
+                  {samples.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                        No samples found
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    samples.map((sample) => (
+                      <tr key={sample.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{sample.barcode}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.customer_name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.test_type}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge variant={
+                            sample.status === 'pending' ? 'secondary' : 
+                            sample.status === 'processing' ? 'default' : 
+                            sample.status === 'completed' ? 'outline' :
+                            sample.status === 'review' ? 'default' : 'destructive'
+                          }>
+                            {sample.status}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(sample.accession_date || '').toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <Button variant="outline" size="sm">View</Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -147,6 +241,15 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
       </div>
     );
   }
+
+  const todaySamples = samples.filter(sample => {
+    const today = new Date().toDateString();
+    const sampleDate = new Date(sample.accession_date || '').toDateString();
+    return today === sampleDate;
+  });
+
+  const rejectedSamples = samples.filter(sample => sample.status === 'rejected');
+  const processingSamples = samples.filter(sample => sample.status === 'processing');
 
   return (
     <div className="space-y-6">
@@ -171,17 +274,22 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {[
-                "89 samples accessioned today",
-                "3 samples rejected for quality",
-                "156 samples in processing",
-                "12 urgent priority samples"
-              ].map((activity, index) => (
-                <div key={index} className="flex items-center space-x-2 text-sm">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span>{activity}</span>
-                </div>
-              ))}
+              <div className="flex items-center space-x-2 text-sm">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span>{todaySamples.length} samples accessioned today</span>
+              </div>
+              <div className="flex items-center space-x-2 text-sm">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                <span>{rejectedSamples.length} samples rejected for quality</span>
+              </div>
+              <div className="flex items-center space-x-2 text-sm">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span>{processingSamples.length} samples in processing</span>
+              </div>
+              <div className="flex items-center space-x-2 text-sm">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span>{samples.length} total samples in system</span>
+              </div>
             </div>
           </CardContent>
         </Card>

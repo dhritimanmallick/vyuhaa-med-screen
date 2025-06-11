@@ -3,24 +3,50 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { useSamples } from "../../../hooks/useSupabaseData";
+import { useAuth } from "../../../hooks/useAuth";
 import StatsCards from "../StatsCards";
-import { Beaker, Upload, CheckCircle } from "lucide-react";
+import { Beaker, Upload, CheckCircle, Loader2 } from "lucide-react";
 
 interface TechnicianDashboardProps {
   currentView: string;
 }
 
 const TechnicianDashboard = ({ currentView }: TechnicianDashboardProps) => {
-  const mockAssignedSamples = [
-    { id: "VYU-001234", barcode: "VYU-001234", testType: "LBC", customer: "Apollo Hospital", priority: "normal", assignedDate: "2024-06-09" },
-    { id: "VYU-001235", barcode: "VYU-001235", testType: "HPV", customer: "Max Healthcare", priority: "urgent", assignedDate: "2024-06-09" },
-    { id: "VYU-001236", barcode: "VYU-001236", testType: "Co-test", customer: "Fortis Hospital", priority: "normal", assignedDate: "2024-06-08" },
-  ];
+  const { samples, loading, error } = useSamples();
+  const { user } = useAuth();
+
+  // Filter samples assigned to this technician or available for processing
+  const technicianSamples = samples.filter(sample => 
+    sample.assigned_technician === user?.id || 
+    (sample.status === 'pending' && !sample.assigned_technician)
+  );
+
+  const assignedSamples = technicianSamples.filter(sample => sample.assigned_technician === user?.id);
+  const processingSamples = assignedSamples.filter(sample => sample.status === 'processing');
+  const completedSamples = assignedSamples.filter(sample => sample.status === 'completed');
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <span className="ml-2">Loading samples...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <p className="text-red-600">Error loading samples: {error}</p>
+      </div>
+    );
+  }
 
   if (currentView === "assigned") {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-gray-900">Assigned Samples</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Assigned Samples ({assignedSamples.length})</h2>
         <Card>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -30,29 +56,39 @@ const TechnicianDashboard = ({ currentView }: TechnicianDashboardProps) => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Barcode</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Test Type</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Date</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {mockAssignedSamples.map((sample) => (
-                    <tr key={sample.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{sample.barcode}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.testType}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.customer}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={sample.priority === 'urgent' ? 'destructive' : 'secondary'}>
-                          {sample.priority}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.assignedDate}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                        <Button variant="outline" size="sm">Process</Button>
-                        <Button variant="outline" size="sm">View Details</Button>
+                  {assignedSamples.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                        No samples assigned
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    assignedSamples.map((sample) => (
+                      <tr key={sample.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{sample.barcode}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.test_type}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.customer_name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge variant={sample.status === 'processing' ? 'default' : sample.status === 'completed' ? 'secondary' : 'outline'}>
+                            {sample.status}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(sample.accession_date || '').toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                          <Button variant="outline" size="sm">Process</Button>
+                          <Button variant="outline" size="sm">View Details</Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -67,77 +103,51 @@ const TechnicianDashboard = ({ currentView }: TechnicianDashboardProps) => {
       <div className="space-y-6">
         <h2 className="text-2xl font-bold text-gray-900">Sample Processing</h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Beaker className="h-5 w-5" />
-                <span>LBC Processing</span>
-              </CardTitle>
-              <CardDescription>Liquid-based Cytology sample preparation</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Sample ID: VYU-001234</label>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-gray-600">Slide Preparation</label>
-                    <Badge variant="outline" className="ml-2">In Progress</Badge>
+          {processingSamples.length === 0 ? (
+            <Card className="col-span-2">
+              <CardContent className="p-6 text-center">
+                <p className="text-gray-600">No samples currently in processing</p>
+              </CardContent>
+            </Card>
+          ) : (
+            processingSamples.slice(0, 2).map((sample) => (
+              <Card key={sample.id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Beaker className="h-5 w-5" />
+                    <span>{sample.test_type} Processing</span>
+                  </CardTitle>
+                  <CardDescription>{sample.test_type === 'LBC' ? 'Liquid-based Cytology sample preparation' : sample.test_type === 'HPV' ? 'DNA extraction and PCR amplification' : 'Combined LBC and HPV testing'}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Sample ID: {sample.barcode}</label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs text-gray-600">Preparation</label>
+                        <Badge variant="outline" className="ml-2">In Progress</Badge>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Status</label>
+                        <Badge variant="secondary" className="ml-2">{sample.status}</Badge>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs text-gray-600">Staining Status</label>
-                    <Badge variant="secondary" className="ml-2">Pending</Badge>
+                  <Textarea placeholder="Add processing notes..." className="min-h-[100px]" />
+                  <div className="flex space-x-2">
+                    <Button className="flex-1">
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Mark Complete
+                    </Button>
+                    <Button variant="outline">
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Results
+                    </Button>
                   </div>
-                </div>
-              </div>
-              <Textarea placeholder="Add processing notes..." className="min-h-[100px]" />
-              <div className="flex space-x-2">
-                <Button className="flex-1">
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Mark Complete
-                </Button>
-                <Button variant="outline">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload Images
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Beaker className="h-5 w-5" />
-                <span>HPV Processing</span>
-              </CardTitle>
-              <CardDescription>DNA extraction and PCR amplification</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Sample ID: VYU-001235</label>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-gray-600">DNA Extraction</label>
-                    <Badge variant="default" className="ml-2">Complete</Badge>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600">PCR Status</label>
-                    <Badge variant="outline" className="ml-2">In Progress</Badge>
-                  </div>
-                </div>
-              </div>
-              <Textarea placeholder="Add processing notes..." className="min-h-[100px]" />
-              <div className="flex space-x-2">
-                <Button className="flex-1">
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Mark Complete
-                </Button>
-                <Button variant="outline">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload Results
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </div>
     );
@@ -166,17 +176,18 @@ const TechnicianDashboard = ({ currentView }: TechnicianDashboardProps) => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {[
-                "12 samples completed today",
-                "8 LBC slides prepared",
-                "10 HPV DNA extractions",
-                "5 urgent samples processed"
-              ].map((activity, index) => (
-                <div key={index} className="flex items-center space-x-2 text-sm">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span>{activity}</span>
-                </div>
-              ))}
+              <div className="flex items-center space-x-2 text-sm">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span>{completedSamples.length} samples completed</span>
+              </div>
+              <div className="flex items-center space-x-2 text-sm">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span>{processingSamples.length} samples in processing</span>
+              </div>
+              <div className="flex items-center space-x-2 text-sm">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span>{assignedSamples.length} total assigned samples</span>
+              </div>
             </div>
           </CardContent>
         </Card>

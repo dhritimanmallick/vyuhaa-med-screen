@@ -5,19 +5,39 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useSamples, usePricingTiers } from "../../../hooks/useSupabaseData";
+import { useAuth } from "../../../hooks/useAuth";
 import StatsCards from "../StatsCards";
-import { Upload, Download, FileText, CreditCard } from "lucide-react";
+import { Upload, Download, FileText, CreditCard, Loader2 } from "lucide-react";
 
 interface CustomerDashboardProps {
   currentView: string;
 }
 
 const CustomerDashboard = ({ currentView }: CustomerDashboardProps) => {
-  const mockSamples = [
-    { id: "VYU-001234", barcode: "VYU-001234", testType: "LBC", status: "completed", submittedDate: "2024-06-05", reportDate: "2024-06-08" },
-    { id: "VYU-001235", barcode: "VYU-001235", testType: "HPV", status: "processing", submittedDate: "2024-06-07", reportDate: null },
-    { id: "VYU-001236", barcode: "VYU-001236", testType: "Co-test", status: "review", submittedDate: "2024-06-06", reportDate: null },
-  ];
+  const { samples, loading: samplesLoading, error: samplesError } = useSamples();
+  const { pricingTiers, loading: pricingLoading } = usePricingTiers();
+  const { user } = useAuth();
+
+  // For demonstration, we'll show all samples. In a real app, you'd filter by customer
+  const customerSamples = samples;
+
+  if (samplesLoading || pricingLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <span className="ml-2">Loading data...</span>
+      </div>
+    );
+  }
+
+  if (samplesError) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <p className="text-red-600">Error loading data: {samplesError}</p>
+      </div>
+    );
+  }
 
   if (currentView === "submit") {
     return (
@@ -79,7 +99,7 @@ const CustomerDashboard = ({ currentView }: CustomerDashboardProps) => {
   if (currentView === "track") {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-gray-900">Track Samples</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Track Samples ({customerSamples.length})</h2>
         <Card>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -90,36 +110,48 @@ const CustomerDashboard = ({ currentView }: CustomerDashboardProps) => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Test Type</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Date</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {mockSamples.map((sample) => (
-                    <tr key={sample.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{sample.barcode}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.testType}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={sample.status === 'completed' ? 'default' : sample.status === 'processing' ? 'secondary' : 'outline'}>
-                          {sample.status}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.submittedDate}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.reportDate || 'Pending'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        {sample.status === 'completed' ? (
-                          <Button variant="outline" size="sm">
-                            <Download className="h-4 w-4 mr-1" />
-                            Download
-                          </Button>
-                        ) : (
-                          <Button variant="outline" size="sm" disabled>
-                            Processing
-                          </Button>
-                        )}
+                  {customerSamples.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                        No samples found
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    customerSamples.map((sample) => (
+                      <tr key={sample.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{sample.barcode}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.test_type}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge variant={
+                            sample.status === 'completed' ? 'default' : 
+                            sample.status === 'processing' ? 'secondary' : 
+                            'outline'
+                          }>
+                            {sample.status}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(sample.accession_date || '').toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          {sample.status === 'completed' ? (
+                            <Button variant="outline" size="sm">
+                              <Download className="h-4 w-4 mr-1" />
+                              Download
+                            </Button>
+                          ) : (
+                            <Button variant="outline" size="sm" disabled>
+                              Processing
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -130,6 +162,8 @@ const CustomerDashboard = ({ currentView }: CustomerDashboardProps) => {
   }
 
   if (currentView === "billing") {
+    const goldTier = pricingTiers.find(tier => tier.tier_name === 'Gold');
+    
     return (
       <div className="space-y-6">
         <h2 className="text-2xl font-bold text-gray-900">Billing Summary</h2>
@@ -140,20 +174,22 @@ const CustomerDashboard = ({ currentView }: CustomerDashboardProps) => {
             </CardHeader>
             <CardContent>
               <Badge variant="default" className="text-lg px-4 py-2">Gold Tier</Badge>
-              <div className="mt-4 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm">LBC Test</span>
-                  <span className="text-sm font-medium">₹800</span>
+              {goldTier && (
+                <div className="mt-4 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm">LBC Test</span>
+                    <span className="text-sm font-medium">₹{goldTier.lbc_price}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm">HPV Test</span>
+                    <span className="text-sm font-medium">₹{goldTier.hpv_price}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm">Co-test</span>
+                    <span className="text-sm font-medium">₹{goldTier.co_test_price}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm">HPV Test</span>
-                  <span className="text-sm font-medium">₹1,200</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm">Co-test</span>
-                  <span className="text-sm font-medium">₹1,800</span>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 
@@ -162,20 +198,30 @@ const CustomerDashboard = ({ currentView }: CustomerDashboardProps) => {
               <CardTitle className="text-lg">This Month</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-blue-600">₹24,600</p>
-              <p className="text-sm text-gray-600 mt-2">23 samples processed</p>
+              <p className="text-2xl font-bold text-blue-600">₹{
+                customerSamples.reduce((total, sample) => {
+                  if (!goldTier) return total;
+                  switch (sample.test_type) {
+                    case 'LBC': return total + goldTier.lbc_price;
+                    case 'HPV': return total + goldTier.hpv_price;
+                    case 'Co-test': return total + goldTier.co_test_price;
+                    default: return total;
+                  }
+                }, 0).toLocaleString()
+              }</p>
+              <p className="text-sm text-gray-600 mt-2">{customerSamples.length} samples processed</p>
               <div className="mt-4 space-y-1">
                 <div className="flex justify-between text-sm">
-                  <span>LBC: 15 tests</span>
-                  <span>₹12,000</span>
+                  <span>LBC: {customerSamples.filter(s => s.test_type === 'LBC').length} tests</span>
+                  <span>₹{(customerSamples.filter(s => s.test_type === 'LBC').length * (goldTier?.lbc_price || 0)).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>HPV: 5 tests</span>
-                  <span>₹6,000</span>
+                  <span>HPV: {customerSamples.filter(s => s.test_type === 'HPV').length} tests</span>
+                  <span>₹{(customerSamples.filter(s => s.test_type === 'HPV').length * (goldTier?.hpv_price || 0)).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Co-test: 3 tests</span>
-                  <span>₹5,400</span>
+                  <span>Co-test: {customerSamples.filter(s => s.test_type === 'Co-test').length} tests</span>
+                  <span>₹{(customerSamples.filter(s => s.test_type === 'Co-test').length * (goldTier?.co_test_price || 0)).toLocaleString()}</span>
                 </div>
               </div>
             </CardContent>
@@ -199,12 +245,15 @@ const CustomerDashboard = ({ currentView }: CustomerDashboardProps) => {
     );
   }
 
+  const completedSamples = customerSamples.filter(sample => sample.status === 'completed');
+  const processingSamples = customerSamples.filter(sample => sample.status === 'processing');
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Customer Portal</h2>
         <div className="text-sm text-gray-600">
-          Apollo Hospitals - Gold Tier
+          Welcome {user?.name} - {user?.role}
         </div>
       </div>
       
@@ -217,17 +266,18 @@ const CustomerDashboard = ({ currentView }: CustomerDashboardProps) => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {[
-                "Report available for VYU-001234",
-                "Sample VYU-001235 in processing",
-                "Payment received for March invoice",
-                "New pickup request submitted"
-              ].map((activity, index) => (
-                <div key={index} className="flex items-center space-x-2 text-sm">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span>{activity}</span>
-                </div>
-              ))}
+              <div className="flex items-center space-x-2 text-sm">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span>{completedSamples.length} reports available for download</span>
+              </div>
+              <div className="flex items-center space-x-2 text-sm">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span>{processingSamples.length} samples in processing</span>
+              </div>
+              <div className="flex items-center space-x-2 text-sm">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span>{customerSamples.length} total samples submitted</span>
+              </div>
             </div>
           </CardContent>
         </Card>
