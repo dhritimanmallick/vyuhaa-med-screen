@@ -8,7 +8,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { validateUser, sanitizeInput, sanitizeEmail } from "@/utils/validation";
 
 interface SignUpFormProps {
   onSwitchToLogin: () => void;
@@ -30,41 +29,30 @@ const SignUpForm = ({ onSwitchToLogin }: SignUpFormProps) => {
     e.preventDefault();
     setError("");
 
-    // Client-side validation
+    // Simple validation
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match");
       return;
     }
 
-    // Sanitize inputs
-    const sanitizedData = {
-      email: sanitizeEmail(formData.email),
-      password: formData.password,
-      name: sanitizeInput(formData.name),
-      role: formData.role
-    };
-
-    // Validate inputs
-    const validation = validateUser(sanitizedData);
-    if (!validation.isValid) {
-      setError(validation.errors.join(", "));
+    if (!formData.name || !formData.email || !formData.role || !formData.password) {
+      setError("Please fill in all fields");
       return;
     }
 
     setIsLoading(true);
     
     try {
-      console.log('Sign up attempt for:', sanitizedData.email);
+      console.log('Sign up attempt for:', formData.email);
       await signUp(
-        sanitizedData.email,
-        sanitizedData.password,
+        formData.email,
+        formData.password,
         {
-          name: sanitizedData.name,
-          role: sanitizedData.role
+          name: formData.name,
+          role: formData.role
         }
       );
       console.log('Sign up successful');
-      // Show success message or redirect
       setError("Account created successfully! Please check your email to verify your account.");
     } catch (error: any) {
       console.error('Sign up error:', error);
@@ -149,13 +137,10 @@ const SignUpForm = ({ onSwitchToLogin }: SignUpFormProps) => {
               type="password"
               value={formData.password}
               onChange={(e) => handleInputChange("password", e.target.value)}
-              placeholder="Create a strong password"
+              placeholder="Create a password"
               required
               disabled={isLoading}
             />
-            <p className="text-xs text-gray-500">
-              Must be 12+ characters with uppercase, lowercase, number, and special character
-            </p>
           </div>
 
           <div className="space-y-2">

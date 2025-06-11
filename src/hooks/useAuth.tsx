@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { User as AppUser } from '@/types/user';
-import { cleanupAuthState } from '@/utils/authCleanup';
 
 export const useAuth = () => {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -31,9 +30,7 @@ export const useAuth = () => {
       console.log('Auth state change:', event, session?.user?.email);
       
       if (event === 'SIGNED_IN' && session?.user) {
-        setTimeout(() => {
-          fetchUserProfile(session.user);
-        }, 0);
+        await fetchUserProfile(session.user);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
       }
@@ -71,16 +68,6 @@ export const useAuth = () => {
 
   const signIn = async (email: string, password: string) => {
     try {
-      // Clean up any existing auth state
-      cleanupAuthState();
-      
-      // Attempt to sign out any existing session
-      try {
-        await supabase.auth.signOut({ scope: 'global' });
-      } catch (err) {
-        console.log('Sign out error (expected):', err);
-      }
-
       console.log('Attempting to sign in with:', email);
       
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -122,14 +109,12 @@ export const useAuth = () => {
 
   const signOut = async () => {
     try {
-      cleanupAuthState();
-      const { error } = await supabase.auth.signOut({ scope: 'global' });
+      const { error } = await supabase.auth.signOut();
       if (error) throw error;
       setUser(null);
       window.location.href = '/';
     } catch (error) {
       console.error('Sign out error:', error);
-      // Force cleanup even if signOut fails
       setUser(null);
       window.location.href = '/';
     }

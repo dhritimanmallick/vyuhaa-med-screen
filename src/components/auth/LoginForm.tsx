@@ -24,7 +24,6 @@ const LoginForm = () => {
       console.log('Login attempt for:', email);
       await signIn(email, password);
       console.log('Login successful, redirecting...');
-      // Force page reload after successful login
       window.location.href = '/';
     } catch (error: any) {
       console.error('Login error:', error);
@@ -34,24 +33,24 @@ const LoginForm = () => {
     }
   };
 
-  // Test user accounts with secure password
+  // Simple test accounts with easy passwords
   const testAccounts = [
-    { email: "admin@vyuhaa.com", label: "Admin", role: "admin" },
-    { email: "pathologist@vyuhaa.com", label: "Pathologist", role: "pathologist" },
-    { email: "accession@vyuhaa.com", label: "Accession Team", role: "accession" },
-    { email: "technician@vyuhaa.com", label: "Technician", role: "technician" },
-    { email: "customer@vyuhaa.com", label: "Customer", role: "customer" }
+    { email: "admin@vyuhaa.com", password: "admin123", label: "Admin", role: "admin" },
+    { email: "pathologist@vyuhaa.com", password: "path123", label: "Pathologist", role: "pathologist" },
+    { email: "accession@vyuhaa.com", password: "acc123", label: "Accession Team", role: "accession" },
+    { email: "technician@vyuhaa.com", password: "tech123", label: "Technician", role: "technician" },
+    { email: "customer@vyuhaa.com", password: "cust123", label: "Customer", role: "customer" }
   ];
 
-  const quickLogin = async (userEmail: string) => {
+  const quickLogin = async (userEmail: string, userPassword: string) => {
     setEmail(userEmail);
-    setPassword("SecureVyuhaa2024!");
+    setPassword(userPassword);
     setError("");
     setIsLoading(true);
     
     try {
       console.log('Quick login attempt for:', userEmail);
-      await signIn(userEmail, "SecureVyuhaa2024!");
+      await signIn(userEmail, userPassword);
       console.log('Quick login successful, redirecting...');
       window.location.href = '/';
     } catch (error: any) {
@@ -125,16 +124,13 @@ const LoginForm = () => {
                 variant="outline" 
                 size="sm" 
                 className="w-full text-xs"
-                onClick={() => quickLogin(account.email)}
+                onClick={() => quickLogin(account.email, account.password)}
                 disabled={isLoading}
               >
-                {account.label}
+                {account.label} ({account.password})
               </Button>
             ))}
           </div>
-          <p className="text-xs text-gray-500 mt-2 text-center">
-            All test accounts use password: SecureVyuhaa2024!
-          </p>
         </div>
       </CardContent>
     </Card>
