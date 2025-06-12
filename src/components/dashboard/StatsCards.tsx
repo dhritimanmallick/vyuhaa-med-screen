@@ -1,6 +1,5 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useSamples } from "../../hooks/useSupabaseData";
+import { useSamples } from "../../hooks/useSamples";
 import { useAuth } from "../../hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
@@ -11,6 +10,8 @@ interface StatsCardsProps {
 const StatsCards = ({ role }: StatsCardsProps) => {
   const { samples, loading, error } = useSamples();
   const { user } = useAuth();
+
+  console.log('StatsCards - Role:', role, 'Samples count:', samples.length, 'Loading:', loading, 'Error:', error);
 
   if (loading) {
     return (

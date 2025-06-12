@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, FileText, Settings, CreditCard, Loader2 } from "lucide-react";
@@ -30,9 +29,13 @@ const AdminDashboard = ({ currentView }: AdminDashboardProps) => {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
 
+  console.log('AdminDashboard - Current view:', currentView);
+
   const fetchAuditLogs = async () => {
     setAuditLoading(true);
     try {
+      console.log('Fetching audit logs...');
+      
       const { data, error } = await supabase
         .from('audit_logs')
         .select(`
@@ -45,7 +48,12 @@ const AdminDashboard = ({ currentView }: AdminDashboardProps) => {
         .order('created_at', { ascending: false })
         .limit(10);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching audit logs:', error);
+        throw error;
+      }
+      
+      console.log('Audit logs fetched successfully:', data?.length || 0);
       setAuditLogs(data || []);
     } catch (error: any) {
       console.error('Failed to fetch audit logs:', error);

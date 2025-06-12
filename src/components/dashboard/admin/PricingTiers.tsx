@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { CreditCard, Edit, Loader2 } from "lucide-react";
-import { usePricingTiers, useCustomers } from "@/hooks/useSupabaseData";
+import { usePricingTiers } from "@/hooks/usePricingTiers";
+import { useCustomers } from "@/hooks/useCustomers";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -19,6 +19,8 @@ const PricingTiers = () => {
   const [editValues, setEditValues] = useState<{
     [key: string]: { lbc_price: number; hpv_price: number; co_test_price: number }
   }>({});
+
+  console.log('PricingTiers - Loading:', pricingLoading, 'Tiers count:', pricingTiers.length, 'Customers count:', customers.length);
 
   const handleEditStart = (tierName: string, tier: any) => {
     setEditingTier(tierName);
@@ -44,16 +46,22 @@ const PricingTiers = () => {
   const handleSave = async (tierName: string) => {
     setUpdating(true);
     try {
+      console.log('Updating pricing tier:', tierName, editValues[tierName]);
+      
       const { error } = await supabase
         .from('pricing_tiers')
         .update(editValues[tierName])
         .eq('tier_name', tierName);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating pricing tier:', error);
+        throw error;
+      }
       
       toast.success(`${tierName} tier pricing updated successfully`);
       setEditingTier(null);
     } catch (error: any) {
+      console.error('Pricing update error:', error);
       toast.error(`Failed to update pricing: ${error.message}`);
     } finally {
       setUpdating(false);
