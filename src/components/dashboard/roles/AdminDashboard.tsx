@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, FileText, Settings, CreditCard, Loader2 } from "lucide-react";
@@ -6,7 +7,7 @@ import UserManagement from "../admin/UserManagement";
 import CustomerManagement from "../admin/CustomerManagement";
 import PricingTiers from "../admin/PricingTiers";
 import LabManagement from "../admin/LabManagement";
-import RevenueManagement from "../admin/RevenueManagement";
+import RevenueManagement from "../RevenueManagement";
 import { supabase } from "@/integrations/supabase/client";
 
 interface AdminDashboardProps {
