@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { useSamples, useCustomers } from "../../../hooks/useSupabaseData";
+import { Textarea } from "@/components/ui/textarea";
+import { useSamples, useCustomers, usePatients } from "../../../hooks/useSupabaseData";
 import StatsCards from "../StatsCards";
-import { Upload, Search, Plus, Loader2 } from "lucide-react";
+import { Upload, Search, Plus, Loader2, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -19,14 +19,25 @@ interface AccessionDashboardProps {
 const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
   const { samples, loading: samplesLoading, error: samplesError } = useSamples();
   const { customers, loading: customersLoading } = useCustomers();
+  const { patients, loading: patientsLoading } = usePatients();
   const { toast } = useToast();
   
   const [newSample, setNewSample] = useState({
     barcode: "",
     customer_id: "",
+    patient_id: "",
     test_type: "",
-    customer_name: ""
   });
+
+  const [newPatient, setNewPatient] = useState({
+    name: "",
+    age: "",
+    gender: "",
+    contact_number: "",
+    address: "",
+    medical_history: ""
+  });
+  
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmitSample = async () => {
@@ -49,6 +60,7 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
           barcode: newSample.barcode,
           customer_id: newSample.customer_id,
           customer_name: selectedCustomer?.name || '',
+          patient_id: newSample.patient_id || null,
           test_type: newSample.test_type as 'LBC' | 'HPV' | 'Co-test',
           lab_id: 'VYU-LAB-001',
           status: 'pending'
@@ -64,14 +76,64 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
       setNewSample({
         barcode: "",
         customer_id: "",
+        patient_id: "",
         test_type: "",
-        customer_name: ""
       });
     } catch (error) {
       console.error('Error submitting sample:', error);
       toast({
         title: "Error",
         description: "Failed to accession sample",
+        variant: "destructive"
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmitPatient = async () => {
+    if (!newPatient.name) {
+      toast({
+        title: "Error",
+        description: "Patient name is required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from('patients')
+        .insert({
+          name: newPatient.name,
+          age: newPatient.age ? parseInt(newPatient.age) : null,
+          gender: newPatient.gender || null,
+          contact_number: newPatient.contact_number || null,
+          address: newPatient.address || null,
+          medical_history: newPatient.medical_history || null
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Patient added successfully"
+      });
+
+      setNewPatient({
+        name: "",
+        age: "",
+        gender: "",
+        contact_number: "",
+        address: "",
+        medical_history: ""
+      });
+    } catch (error) {
+      console.error('Error adding patient:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add patient",
         variant: "destructive"
       });
     } finally {
@@ -92,6 +154,104 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
         <p className="text-red-600">Error loading data: {samplesError}</p>
+      </div>
+    );
+  }
+
+  if (currentView === "add-patient") {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-gray-900">Add New Patient</h2>
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <User className="h-5 w-5" />
+              <span>Patient Registration Form</span>
+            </CardTitle>
+            <CardDescription>Register a new patient in the system</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="patient_name">Patient Name *</Label>
+                <Input
+                  id="patient_name"
+                  value={newPatient.name}
+                  onChange={(e) => setNewPatient({...newPatient, name: e.target.value})}
+                  placeholder="Enter patient name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="age">Age</Label>
+                <Input
+                  id="age"
+                  type="number"
+                  value={newPatient.age}
+                  onChange={(e) => setNewPatient({...newPatient, age: e.target.value})}
+                  placeholder="Enter age"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gender">Gender</Label>
+                <Select value={newPatient.gender} onValueChange={(value) => setNewPatient({...newPatient, gender: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Male">Male</SelectItem>
+                    <SelectItem value="Female">Female</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contact">Contact Number</Label>
+                <Input
+                  id="contact"
+                  value={newPatient.contact_number}
+                  onChange={(e) => setNewPatient({...newPatient, contact_number: e.target.value})}
+                  placeholder="+91-XXXXXXXXXX"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="address">Address</Label>
+              <Input
+                id="address"
+                value={newPatient.address}
+                onChange={(e) => setNewPatient({...newPatient, address: e.target.value})}
+                placeholder="Enter complete address"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="medical_history">Medical History</Label>
+              <Textarea
+                id="medical_history"
+                value={newPatient.medical_history}
+                onChange={(e) => setNewPatient({...newPatient, medical_history: e.target.value})}
+                placeholder="Enter relevant medical history"
+                className="min-h-[100px]"
+              />
+            </div>
+            <Button 
+              className="w-full bg-blue-600 hover:bg-blue-700" 
+              onClick={handleSubmitPatient}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Adding Patient...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Patient
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -133,6 +293,25 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
                     {customers.map((customer) => (
                       <SelectItem key={customer.id} value={customer.id}>
                         {customer.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="patient">Patient (Optional)</Label>
+                <Select 
+                  value={newSample.patient_id} 
+                  onValueChange={(value) => setNewSample({...newSample, patient_id: value})}
+                  disabled={patientsLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={patientsLoading ? "Loading patients..." : "Select patient"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {patients.map((patient) => (
+                      <SelectItem key={patient.id} value={patient.id}>
+                        {patient.name} ({patient.age} {patient.gender})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -194,6 +373,7 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Barcode</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Test Type</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -204,7 +384,7 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {samples.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                         No samples found
                       </td>
                     </tr>
@@ -212,6 +392,9 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
                     samples.map((sample) => (
                       <tr key={sample.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{sample.barcode}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {sample.patients ? `${sample.patients.name} (${sample.patients.age})` : 'Not linked'}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.customer_name}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sample.test_type}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -308,8 +491,8 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
               Search Sample by Barcode
             </Button>
             <Button variant="outline" className="w-full justify-start">
-              <Plus className="h-4 w-4 mr-2" />
-              Register New Customer
+              <User className="h-4 w-4 mr-2" />
+              Register New Patient
             </Button>
           </CardContent>
         </Card>

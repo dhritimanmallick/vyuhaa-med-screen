@@ -102,6 +102,53 @@ export type Database = {
         }
         Relationships: []
       }
+      patients: {
+        Row: {
+          address: string | null
+          age: number | null
+          contact_number: string | null
+          created_at: string | null
+          created_by: string | null
+          gender: string | null
+          id: string
+          medical_history: string | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          age?: number | null
+          contact_number?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          gender?: string | null
+          id?: string
+          medical_history?: string | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          age?: number | null
+          contact_number?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          gender?: string | null
+          id?: string
+          medical_history?: string | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patients_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pricing_tiers: {
         Row: {
           co_test_price: number
@@ -164,7 +211,11 @@ export type Database = {
           customer_name: string
           id: string
           lab_id: string
+          pathologist_assigned_at: string | null
+          patient_id: string | null
+          processing_notes: string | null
           status: Database["public"]["Enums"]["sample_status"]
+          technician_completed_at: string | null
           test_type: Database["public"]["Enums"]["test_type"]
           updated_at: string | null
         }
@@ -178,7 +229,11 @@ export type Database = {
           customer_name: string
           id?: string
           lab_id: string
+          pathologist_assigned_at?: string | null
+          patient_id?: string | null
+          processing_notes?: string | null
           status?: Database["public"]["Enums"]["sample_status"]
+          technician_completed_at?: string | null
           test_type: Database["public"]["Enums"]["test_type"]
           updated_at?: string | null
         }
@@ -192,7 +247,11 @@ export type Database = {
           customer_name?: string
           id?: string
           lab_id?: string
+          pathologist_assigned_at?: string | null
+          patient_id?: string | null
+          processing_notes?: string | null
           status?: Database["public"]["Enums"]["sample_status"]
+          technician_completed_at?: string | null
           test_type?: Database["public"]["Enums"]["test_type"]
           updated_at?: string | null
         }
@@ -216,6 +275,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "samples_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
             referencedColumns: ["id"]
           },
         ]
@@ -243,6 +309,80 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      test_results: {
+        Row: {
+          completed_by: string | null
+          created_at: string | null
+          diagnosis: string | null
+          id: string
+          images_uploaded: boolean | null
+          patient_id: string | null
+          recommendations: string | null
+          report_generated: boolean | null
+          reviewed_by: string | null
+          sample_id: string
+          test_findings: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          completed_by?: string | null
+          created_at?: string | null
+          diagnosis?: string | null
+          id?: string
+          images_uploaded?: boolean | null
+          patient_id?: string | null
+          recommendations?: string | null
+          report_generated?: boolean | null
+          reviewed_by?: string | null
+          sample_id: string
+          test_findings?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          completed_by?: string | null
+          created_at?: string | null
+          diagnosis?: string | null
+          id?: string
+          images_uploaded?: boolean | null
+          patient_id?: string | null
+          recommendations?: string | null
+          report_generated?: boolean | null
+          reviewed_by?: string | null
+          sample_id?: string
+          test_findings?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_results_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_results_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_results_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_results_sample_id_fkey"
+            columns: ["sample_id"]
+            isOneToOne: false
+            referencedRelation: "samples"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {
