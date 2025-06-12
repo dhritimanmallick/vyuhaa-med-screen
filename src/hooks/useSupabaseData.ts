@@ -5,3 +5,4 @@ export { useSamples } from './useSamples';
 export { usePatients } from './usePatients';
 export { useTestResults } from './useTestResults';
 export { usePricingTiers } from './usePricingTiers';
+export { useBillingRecords } from './useBillingRecords';

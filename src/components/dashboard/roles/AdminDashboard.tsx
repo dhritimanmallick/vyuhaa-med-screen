@@ -6,6 +6,7 @@ import UserManagement from "../admin/UserManagement";
 import CustomerManagement from "../admin/CustomerManagement";
 import PricingTiers from "../admin/PricingTiers";
 import LabManagement from "../admin/LabManagement";
+import RevenueManagement from "../admin/RevenueManagement";
 import { supabase } from "@/integrations/supabase/client";
 
 interface AdminDashboardProps {
@@ -82,6 +83,10 @@ const AdminDashboard = ({ currentView }: AdminDashboardProps) => {
 
   if (currentView === "labs") {
     return <LabManagement />;
+  }
+
+  if (currentView === "revenue") {
+    return <RevenueManagement />;
   }
 
   if (currentView === "reports") {

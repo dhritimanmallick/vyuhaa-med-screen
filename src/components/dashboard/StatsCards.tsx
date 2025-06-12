@@ -1,5 +1,7 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSamples } from "../../hooks/useSamples";
+import { useBillingRecords } from "../../hooks/useBillingRecords";
 import { useAuth } from "../../hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
@@ -9,11 +11,12 @@ interface StatsCardsProps {
 
 const StatsCards = ({ role }: StatsCardsProps) => {
   const { samples, loading, error } = useSamples();
+  const { billingRecords, loading: billingLoading } = useBillingRecords();
   const { user } = useAuth();
 
   console.log('StatsCards - Role:', role, 'Samples count:', samples.length, 'Loading:', loading, 'Error:', error);
 
-  if (loading) {
+  if (loading || billingLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[1, 2, 3, 4].map((i) => (
@@ -38,6 +41,11 @@ const StatsCards = ({ role }: StatsCardsProps) => {
   const getStatsForRole = () => {
     switch (role) {
       case 'admin':
+        const totalRevenue = billingRecords.reduce((sum, record) => sum + Number(record.amount), 0);
+        const pendingRevenue = billingRecords
+          .filter(record => record.payment_status === 'pending')
+          .reduce((sum, record) => sum + Number(record.amount), 0);
+        
         return [
           {
             title: "Total Samples",
@@ -45,19 +53,19 @@ const StatsCards = ({ role }: StatsCardsProps) => {
             description: "All samples in system"
           },
           {
-            title: "Processing",
-            value: samples.filter(s => s.status === 'processing').length.toString(),
-            description: "Currently being processed"
+            title: "Total Revenue",
+            value: `₹${totalRevenue.toLocaleString()}`,
+            description: "Generated revenue"
+          },
+          {
+            title: "Pending Revenue",
+            value: `₹${pendingRevenue.toLocaleString()}`,
+            description: "Awaiting payment"
           },
           {
             title: "Completed",
             value: samples.filter(s => s.status === 'completed').length.toString(),
             description: "Ready for delivery"
-          },
-          {
-            title: "Pending Review",
-            value: samples.filter(s => s.status === 'review').length.toString(),
-            description: "Awaiting pathologist review"
           }
         ];
       

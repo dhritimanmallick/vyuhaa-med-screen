@@ -39,6 +39,57 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_records: {
+        Row: {
+          amount: number
+          billing_date: string | null
+          created_at: string | null
+          customer_id: string
+          id: string
+          payment_status: string | null
+          sample_id: string
+          test_type: Database["public"]["Enums"]["test_type"]
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          billing_date?: string | null
+          created_at?: string | null
+          customer_id: string
+          id?: string
+          payment_status?: string | null
+          sample_id: string
+          test_type: Database["public"]["Enums"]["test_type"]
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          billing_date?: string | null
+          created_at?: string | null
+          customer_id?: string
+          id?: string
+          payment_status?: string | null
+          sample_id?: string
+          test_type?: Database["public"]["Enums"]["test_type"]
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_records_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_records_sample_id_fkey"
+            columns: ["sample_id"]
+            isOneToOne: false
+            referencedRelation: "samples"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           contact: string
@@ -320,6 +371,9 @@ export type Database = {
           patient_id: string | null
           recommendations: string | null
           report_generated: boolean | null
+          report_sent_at: string | null
+          report_sent_to: string | null
+          report_url: string | null
           reviewed_by: string | null
           sample_id: string
           test_findings: string | null
@@ -334,6 +388,9 @@ export type Database = {
           patient_id?: string | null
           recommendations?: string | null
           report_generated?: boolean | null
+          report_sent_at?: string | null
+          report_sent_to?: string | null
+          report_url?: string | null
           reviewed_by?: string | null
           sample_id: string
           test_findings?: string | null
@@ -348,6 +405,9 @@ export type Database = {
           patient_id?: string | null
           recommendations?: string | null
           report_generated?: boolean | null
+          report_sent_at?: string | null
+          report_sent_to?: string | null
+          report_url?: string | null
           reviewed_by?: string | null
           sample_id?: string
           test_findings?: string | null
