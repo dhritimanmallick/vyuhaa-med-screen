@@ -9,6 +9,7 @@ import PathologistDashboard from "./roles/PathologistDashboard";
 import CustomerDashboard from "./roles/CustomerDashboard";
 import TopBar from "./TopBar";
 import { Loader2 } from "lucide-react";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 
 interface DashboardProps {
   user: User | null;
@@ -48,15 +49,17 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar user={user} currentView={currentView} setCurrentView={setCurrentView} />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar user={user} onLogout={onLogout} />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto p-6">
-          {renderContent()}
-        </main>
+    <SidebarProvider>
+      <div className="flex h-screen bg-gray-50 w-full">
+        <Sidebar user={user} currentView={currentView} setCurrentView={setCurrentView} />
+        <SidebarInset className="flex flex-col">
+          <TopBar user={user} onLogout={onLogout} />
+          <main className="flex-1 overflow-x-hidden overflow-y-auto p-6">
+            {renderContent()}
+          </main>
+        </SidebarInset>
       </div>
-    </div>
+    </SidebarProvider>
   );
 };
 

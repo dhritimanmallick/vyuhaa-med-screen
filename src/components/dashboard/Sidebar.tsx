@@ -13,6 +13,17 @@ import {
   User as UserIcon,
   AlertCircle
 } from "lucide-react";
+import {
+  Sidebar as SidebarBase,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarHeader,
+} from "@/components/ui/sidebar";
 
 interface SidebarProps {
   user: User;
@@ -77,28 +88,34 @@ const Sidebar = ({ user, currentView, setCurrentView }: SidebarProps) => {
   const menuItems = getMenuItems();
 
   return (
-    <div className="bg-white w-64 shadow-lg border-r border-gray-200">
-      <div className="p-6">
-        <div className="text-sm text-gray-500 mb-4">Navigation</div>
-        <nav className="space-y-2">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setCurrentView(item.id)}
-              className={cn(
-                "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors",
-                currentView === item.id
-                  ? "bg-blue-50 text-blue-700 border border-blue-200"
-                  : "text-gray-700 hover:bg-gray-50"
-              )}
-            >
-              <item.icon className="h-5 w-5" />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-      </div>
-    </div>
+    <SidebarBase>
+      <SidebarHeader className="p-4">
+        <div className="text-lg font-semibold text-gray-900">
+          {user.role?.charAt(0).toUpperCase() + user.role?.slice(1)} Portal
+        </div>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {menuItems.map((item) => (
+                <SidebarMenuItem key={item.id}>
+                  <SidebarMenuButton
+                    onClick={() => setCurrentView(item.id)}
+                    isActive={currentView === item.id}
+                    className="w-full"
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+    </SidebarBase>
   );
 };
 
