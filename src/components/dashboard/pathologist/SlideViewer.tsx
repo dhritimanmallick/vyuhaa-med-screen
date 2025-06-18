@@ -186,8 +186,15 @@ const SlideViewer = ({ slideData, onAnnotationChange }: SlideViewerProps) => {
             transformOrigin: 'center center'
           }}
         >
-          {/* Simulated Slide Background */}
-          <div className="w-full h-full bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 relative">
+          {/* Actual Slide Image Background */}
+          <div 
+            className="w-full h-full relative bg-center bg-no-repeat bg-contain"
+            style={{
+              backgroundImage: `url('/lovable-uploads/f07723c3-179d-4293-b0ed-55e8945aa47f.png')`,
+              minHeight: '100%',
+              minWidth: '100%'
+            }}
+          >
             {/* Grid overlay for high zoom levels */}
             {zoomLevel > 200 && (
               <div 
@@ -201,22 +208,6 @@ const SlideViewer = ({ slideData, onAnnotationChange }: SlideViewerProps) => {
                 }}
               />
             )}
-
-            {/* Simulated cellular structures */}
-            <div className="absolute inset-0">
-              {Array.from({ length: Math.floor(zoomLevel / 10) }).map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute rounded-full bg-pink-200 opacity-60"
-                  style={{
-                    width: `${2 + Math.random() * 4}px`,
-                    height: `${2 + Math.random() * 4}px`,
-                    left: `${Math.random() * 90}%`,
-                    top: `${Math.random() * 90}%`,
-                  }}
-                />
-              ))}
-            </div>
 
             {/* Detected regions */}
             {slideRegions.map((region) => (
