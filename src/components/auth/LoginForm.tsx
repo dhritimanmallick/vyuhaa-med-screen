@@ -64,14 +64,14 @@ const LoginForm = () => {
 
   return (
     <Card className="w-full max-w-md shadow-lg">
-      <CardHeader className="text-center space-y-4">
+      <CardHeader className="text-center space-y-3">
         <div className="flex justify-center">
-          <img src={cerviaiLogo} alt="CerviAI Logo" className="h-20 object-contain" />
+          <img src={cerviaiLogo} alt="CerviAI Logo" className="h-28 object-contain" />
         </div>
-        <div>
-          <CardTitle className="text-2xl font-bold text-blue-900">CerviAI</CardTitle>
-          <CardDescription className="text-teal-600 text-sm mt-1">
-            by Vyuhaa Med Data
+        <div className="space-y-1">
+          <CardTitle className="text-xl font-bold text-blue-900">Vyuhaa Med Data</CardTitle>
+          <CardDescription className="text-teal-600 text-sm">
+            Digital Pathology Information Management System
           </CardDescription>
         </div>
       </CardHeader>
