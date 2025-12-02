@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import cerviaiLogo from "@/assets/cerviai-logo.jpeg";
 
 const LoginForm = () => {
   const [email, setEmail] = useState("");
@@ -63,11 +64,16 @@ const LoginForm = () => {
 
   return (
     <Card className="w-full max-w-md shadow-lg">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold text-blue-900">Vyuhaa Med</CardTitle>
-        <CardDescription className="text-teal-600">
-          Cervical Cancer Screening Platform
-        </CardDescription>
+      <CardHeader className="text-center space-y-4">
+        <div className="flex justify-center">
+          <img src={cerviaiLogo} alt="CerviAI Logo" className="h-20 object-contain" />
+        </div>
+        <div>
+          <CardTitle className="text-2xl font-bold text-blue-900">CerviAI</CardTitle>
+          <CardDescription className="text-teal-600 text-sm mt-1">
+            by Vyuhaa Med Data
+          </CardDescription>
+        </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
