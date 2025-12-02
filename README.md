@@ -1,8 +1,8 @@
-🧬 Vyuhaa Med Screen – Cervical Cytology Workflow Platform
+Vyuhaa Med Screen – Cervical Cytology Workflow Platform
 
 This repository contains the workflow codebase for Vyuhaa Med’s digital cervical cytology screening platform. It enables digitization, AI-assisted diagnostics, and efficient workflows for large-scale cervical cancer screening programs.
 
-📖 Table of Contents
+Table of Contents
 
 Overview
 
