@@ -401,8 +401,13 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
                           <Badge variant={
                             sample.status === 'pending' ? 'secondary' : 
                             sample.status === 'processing' ? 'default' : 
-                            sample.status === 'completed' ? 'outline' :
-                            sample.status === 'review' ? 'default' : 'destructive'
+                            sample.status === 'imaging' ? 'outline' :
+                            sample.status === 'review' ? 'default' :
+                            sample.status === 'completed' ? 'outline' : 'destructive'
+                          } className={
+                            sample.status === 'imaging' ? 'bg-purple-100 text-purple-800 border-purple-200' :
+                            sample.status === 'review' ? 'bg-orange-100 text-orange-800 border-orange-200' :
+                            sample.status === 'completed' ? 'bg-green-100 text-green-800 border-green-200' : ''
                           }>
                             {sample.status}
                           </Badge>
@@ -431,8 +436,12 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
     return today === sampleDate;
   });
 
-  const rejectedSamples = samples.filter(sample => sample.status === 'rejected');
+  const pendingSamples = samples.filter(sample => sample.status === 'pending');
   const processingSamples = samples.filter(sample => sample.status === 'processing');
+  const imagingSamples = samples.filter(sample => sample.status === 'imaging');
+  const reviewSamples = samples.filter(sample => sample.status === 'review');
+  const completedSamples = samples.filter(sample => sample.status === 'completed');
+  const rejectedSamples = samples.filter(sample => sample.status === 'rejected');
 
   return (
     <div className="space-y-6">
@@ -450,6 +459,46 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
       
       <StatsCards role="accession" />
       
+      {/* Workflow Status Overview */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <Card className="bg-gray-50 border-gray-200">
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-gray-700">{pendingSamples.length}</p>
+            <p className="text-xs text-gray-500">Pending</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-blue-700">{processingSamples.length}</p>
+            <p className="text-xs text-blue-600">Processing</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-purple-50 border-purple-200">
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-purple-700">{imagingSamples.length}</p>
+            <p className="text-xs text-purple-600">Imaging</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-orange-50 border-orange-200">
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-orange-700">{reviewSamples.length}</p>
+            <p className="text-xs text-orange-600">Review</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-green-50 border-green-200">
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-green-700">{completedSamples.length}</p>
+            <p className="text-xs text-green-600">Completed</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-red-50 border-red-200">
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-red-700">{rejectedSamples.length}</p>
+            <p className="text-xs text-red-600">Rejected</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -459,19 +508,23 @@ const AccessionDashboard = ({ currentView }: AccessionDashboardProps) => {
             <div className="space-y-3">
               <div className="flex items-center space-x-2 text-sm">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span>{todaySamples.length} samples accessioned today</span>
-              </div>
-              <div className="flex items-center space-x-2 text-sm">
-                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                <span>{rejectedSamples.length} samples rejected for quality</span>
+                <span>Accessioned today: {todaySamples.length}</span>
               </div>
               <div className="flex items-center space-x-2 text-sm">
                 <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <span>{processingSamples.length} samples in processing</span>
+                <span>In Processing: {processingSamples.length}</span>
+              </div>
+              <div className="flex items-center space-x-2 text-sm">
+                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                <span>In Imaging: {imagingSamples.length}</span>
+              </div>
+              <div className="flex items-center space-x-2 text-sm">
+                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                <span>Under Review: {reviewSamples.length}</span>
               </div>
               <div className="flex items-center space-x-2 text-sm">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>{samples.length} total samples in system</span>
+                <span>Completed: {completedSamples.length}</span>
               </div>
             </div>
           </CardContent>
