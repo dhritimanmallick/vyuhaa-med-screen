@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSamples } from "../../../hooks/useSupabaseData";
 import { useAuth } from "../../../hooks/useAuth";
 import StatsCards from "../StatsCards";
-import { Beaker, Upload, CheckCircle, Loader2 } from "lucide-react";
+import { Beaker, Upload, CheckCircle, Loader2, Camera, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -30,7 +30,8 @@ const TechnicianDashboard = ({ currentView }: TechnicianDashboardProps) => {
 
   const assignedSamples = technicianSamples.filter(sample => sample.assigned_technician === user?.id);
   const processingSamples = assignedSamples.filter(sample => sample.status === 'processing');
-  const completedSamples = assignedSamples.filter(sample => sample.status === 'completed');
+  const imagingSamples = assignedSamples.filter(sample => sample.status === 'imaging');
+  const completedSamples = assignedSamples.filter(sample => sample.status === 'review' || sample.status === 'completed');
 
   const handleStartProcessing = async (sampleId: string) => {
     setSubmitting(prev => ({ ...prev, [sampleId]: true }));
@@ -69,25 +70,61 @@ const TechnicianDashboard = ({ currentView }: TechnicianDashboardProps) => {
     try {
       const notes = processingNotes[sampleId] || '';
       
-      // Update sample status and create test result
+      // Update sample status to imaging (next step in workflow)
       const { error: sampleError } = await supabase
         .from('samples')
         .update({
-          status: 'review',
+          status: 'imaging',
           processing_notes: notes
         })
         .eq('id', sampleId);
 
       if (sampleError) throw sampleError;
 
-      // Create test result entry
+      toast({
+        title: "Success",
+        description: "Sample processing completed. Sent to digital imaging."
+      });
+
+      setProcessingNotes(prev => ({ ...prev, [sampleId]: '' }));
+      window.location.reload();
+    } catch (error) {
+      console.error('Error completing processing:', error);
+      toast({
+        title: "Error",
+        description: "Failed to complete processing",
+        variant: "destructive"
+      });
+    } finally {
+      setSubmitting(prev => ({ ...prev, [sampleId]: false }));
+    }
+  };
+
+  const handleCompleteImaging = async (sampleId: string) => {
+    setSubmitting(prev => ({ ...prev, [sampleId]: true }));
+    try {
+      const notes = processingNotes[sampleId] || '';
+      
+      // Update sample status to review (pathologist)
+      const { error: sampleError } = await supabase
+        .from('samples')
+        .update({
+          status: 'review',
+          processing_notes: notes ? `${notes} | Imaging completed` : 'Imaging completed'
+        })
+        .eq('id', sampleId);
+
+      if (sampleError) throw sampleError;
+
+      // Create test result entry for pathologist review
       const sample = samples.find(s => s.id === sampleId);
       const { error: testResultError } = await supabase
         .from('test_results')
         .insert({
           sample_id: sampleId,
           patient_id: sample?.patient_id || null,
-          test_findings: `Processing completed by technician. Notes: ${notes}`,
+          test_findings: `Digital imaging completed. Ready for pathologist review.`,
+          images_uploaded: true,
           completed_by: user?.id
         });
 
@@ -95,18 +132,16 @@ const TechnicianDashboard = ({ currentView }: TechnicianDashboardProps) => {
 
       toast({
         title: "Success",
-        description: "Sample processing completed and sent for review"
+        description: "Digital imaging completed. Sent to pathologist for review."
       });
 
       setProcessingNotes(prev => ({ ...prev, [sampleId]: '' }));
-      
-      // Refresh the page to see updated data
       window.location.reload();
     } catch (error) {
-      console.error('Error completing processing:', error);
+      console.error('Error completing imaging:', error);
       toast({
         title: "Error",
-        description: "Failed to complete processing",
+        description: "Failed to complete imaging",
         variant: "destructive"
       });
     } finally {
@@ -254,13 +289,76 @@ const TechnicianDashboard = ({ currentView }: TechnicianDashboardProps) => {
                       {submitting[sample.id] ? (
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       ) : (
+                        <Send className="h-4 w-4 mr-2" />
+                      )}
+                      Send to Imaging
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (currentView === "imaging") {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-gray-900">Digital Imaging</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {imagingSamples.length === 0 ? (
+            <Card className="col-span-2">
+              <CardContent className="p-6 text-center">
+                <p className="text-gray-600">No samples currently in imaging</p>
+              </CardContent>
+            </Card>
+          ) : (
+            imagingSamples.map((sample) => (
+              <Card key={sample.id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Camera className="h-5 w-5" />
+                    <span>{sample.test_type} - Digital Imaging</span>
+                  </CardTitle>
+                  <CardDescription>
+                    Patient: {sample.patients ? `${sample.patients.name} (${sample.patients.age})` : 'Not linked'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Sample ID: {sample.barcode}</label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs text-gray-600">Test Type</label>
+                        <Badge variant="outline" className="ml-2">{sample.test_type}</Badge>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Status</label>
+                        <Badge className="ml-2 bg-purple-500">Imaging</Badge>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Upload Slide Images</label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                      <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-500">Click to upload slide images</p>
+                    </div>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button 
+                      className="flex-1"
+                      onClick={() => handleCompleteImaging(sample.id)}
+                      disabled={submitting[sample.id]}
+                    >
+                      {submitting[sample.id] ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
                         <CheckCircle className="h-4 w-4 mr-2" />
                       )}
-                      Mark Complete
-                    </Button>
-                    <Button variant="outline">
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Results
+                      Complete & Send to Pathologist
                     </Button>
                   </div>
                 </CardContent>
@@ -297,7 +395,11 @@ const TechnicianDashboard = ({ currentView }: TechnicianDashboardProps) => {
             <div className="space-y-3">
               <div className="flex items-center space-x-2 text-sm">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>{completedSamples.length} samples completed</span>
+                <span>{completedSamples.length} samples sent to pathologist</span>
+              </div>
+              <div className="flex items-center space-x-2 text-sm">
+                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                <span>{imagingSamples.length} samples in imaging</span>
               </div>
               <div className="flex items-center space-x-2 text-sm">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
