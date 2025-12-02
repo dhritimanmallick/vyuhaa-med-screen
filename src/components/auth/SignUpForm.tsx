@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import cerviaiLogo from "@/assets/cerviai-logo.jpeg";
 
 interface SignUpFormProps {
   onSwitchToLogin: () => void;
@@ -71,11 +72,16 @@ const SignUpForm = ({ onSwitchToLogin }: SignUpFormProps) => {
 
   return (
     <Card className="w-full max-w-md shadow-lg">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold text-blue-900">Create Account</CardTitle>
-        <CardDescription className="text-teal-600">
-          Join the Vyuhaa Med Platform
-        </CardDescription>
+      <CardHeader className="text-center space-y-4">
+        <div className="flex justify-center">
+          <img src={cerviaiLogo} alt="CerviAI Logo" className="h-20 object-contain" />
+        </div>
+        <div>
+          <CardTitle className="text-2xl font-bold text-blue-900">Create Account</CardTitle>
+          <CardDescription className="text-teal-600">
+            Join CerviAI by Vyuhaa Med Data
+          </CardDescription>
+        </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
