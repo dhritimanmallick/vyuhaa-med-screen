@@ -504,6 +504,7 @@ export type Database = {
       sample_status:
         | "pending"
         | "processing"
+        | "imaging"
         | "review"
         | "completed"
         | "rejected"
@@ -645,6 +646,7 @@ export const Constants = {
       sample_status: [
         "pending",
         "processing",
+        "imaging",
         "review",
         "completed",
         "rejected",

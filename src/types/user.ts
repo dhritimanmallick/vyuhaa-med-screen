@@ -30,7 +30,7 @@ export interface Sample {
   customer_name: string;
   patient_id?: string;
   accession_date: string;
-  status: 'pending' | 'processing' | 'review' | 'completed' | 'rejected';
+  status: 'pending' | 'processing' | 'imaging' | 'review' | 'completed' | 'rejected';
   lab_id: string;
   assigned_technician?: string;
   assigned_pathologist?: string;

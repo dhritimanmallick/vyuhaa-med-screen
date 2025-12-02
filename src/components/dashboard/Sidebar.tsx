@@ -11,7 +11,8 @@ import {
   Upload,
   CreditCard,
   User as UserIcon,
-  AlertCircle
+  AlertCircle,
+  Camera
 } from "lucide-react";
 import {
   Sidebar as SidebarBase,
@@ -62,6 +63,7 @@ const Sidebar = ({ user, currentView, setCurrentView }: SidebarProps) => {
           { id: 'dashboard', label: 'Dashboard', icon: Home },
           { id: 'assigned', label: 'Assigned Samples', icon: FileText },
           { id: 'processing', label: 'Sample Processing', icon: Beaker },
+          { id: 'imaging', label: 'Digital Imaging', icon: Camera },
           { id: 'completed', label: 'Completed Samples', icon: FileText },
         ];
       case 'pathologist':
