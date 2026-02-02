@@ -31,6 +31,10 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
     );
   }
 
+  const handleNavigateToReview = () => {
+    setCurrentView('review-queue');
+  };
+
   const renderContent = () => {
     switch (user.role) {
       case 'admin':
@@ -40,7 +44,12 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
       case 'technician':
         return <TechnicianDashboard currentView={currentView} />;
       case 'pathologist':
-        return <PathologistDashboard currentView={currentView} />;
+        return (
+          <PathologistDashboard 
+            currentView={currentView} 
+            onNavigateToReview={handleNavigateToReview}
+          />
+        );
       case 'customer':
         return <CustomerDashboard currentView={currentView} />;
       default:

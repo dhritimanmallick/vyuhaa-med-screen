@@ -7,24 +7,22 @@ import AISlideViewer from "../pathologist/AISlideViewer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Loader2, FileCheck, Eye } from "lucide-react";
+import { Loader2, Eye, FileText, Download, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 interface PathologistDashboardProps {
   currentView: string;
+  onNavigateToReview?: () => void;
 }
 
-const PathologistDashboard = ({ currentView }: PathologistDashboardProps) => {
+const PathologistDashboard = ({ currentView, onNavigateToReview }: PathologistDashboardProps) => {
   const { samples, loading, error } = useSamples();
   const { testResults } = useTestResults();
   const { user } = useAuth();
   const { toast } = useToast();
-  const [diagnosis, setDiagnosis] = useState<{[key: string]: string}>({});
-  const [recommendations, setRecommendations] = useState<{[key: string]: string}>({});
-  const [submitting, setSubmitting] = useState<{[key: string]: boolean}>({});
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
+  const [sendingReport, setSendingReport] = useState<{[key: string]: boolean}>({});
 
   // Filter samples assigned to this pathologist or pending review
   const pathologistSamples = samples.filter(sample => 
@@ -35,83 +33,94 @@ const PathologistDashboard = ({ currentView }: PathologistDashboardProps) => {
   const pendingReviews = pathologistSamples.filter(sample => sample.status === 'review');
   const completedSamples = pathologistSamples.filter(sample => sample.status === 'completed');
 
-  const handleFinalizeReport = async (sampleId: string) => {
-    const sampleDiagnosis = diagnosis[sampleId];
-    const sampleRecommendations = recommendations[sampleId];
+  const handleCaseDoubleClick = (sampleId: string) => {
+    setSelectedCaseId(sampleId);
+    if (onNavigateToReview) {
+      onNavigateToReview();
+    }
+  };
 
-    if (!sampleDiagnosis) {
+  const handleSendReport = async (sampleId: string) => {
+    const sample = samples.find(s => s.id === sampleId);
+    const result = testResults.find(tr => tr.sample_id === sampleId);
+    
+    if (!result?.diagnosis) {
       toast({
         title: "Error",
-        description: "Please provide a diagnosis before finalizing the report",
+        description: "No diagnosis available to send",
         variant: "destructive"
       });
       return;
     }
 
-    setSubmitting(prev => ({ ...prev, [sampleId]: true }));
+    setSendingReport(prev => ({ ...prev, [sampleId]: true }));
     try {
-      // Update sample status to completed
-      const { error: sampleError } = await supabase
-        .from('samples')
+      // Update test result to mark report as sent
+      const { error } = await supabase
+        .from('test_results')
         .update({
-          status: 'completed',
-          assigned_pathologist: user?.id
+          report_sent_at: new Date().toISOString(),
+          report_sent_to: sample?.patients?.contact_number || 'patient@email.com'
         })
-        .eq('id', sampleId);
+        .eq('id', result.id);
 
-      if (sampleError) throw sampleError;
-
-      // Update or create test result with diagnosis
-      const existingResult = testResults.find(tr => tr.sample_id === sampleId);
-      
-      if (existingResult) {
-        const { error: updateError } = await supabase
-          .from('test_results')
-          .update({
-            diagnosis: sampleDiagnosis,
-            recommendations: sampleRecommendations,
-            report_generated: true,
-            reviewed_by: user?.id
-          })
-          .eq('id', existingResult.id);
-
-        if (updateError) throw updateError;
-      } else {
-        const sample = samples.find(s => s.id === sampleId);
-        const { error: insertError } = await supabase
-          .from('test_results')
-          .insert({
-            sample_id: sampleId,
-            patient_id: sample?.patient_id || null,
-            diagnosis: sampleDiagnosis,
-            recommendations: sampleRecommendations,
-            report_generated: true,
-            reviewed_by: user?.id
-          });
-
-        if (insertError) throw insertError;
-      }
+      if (error) throw error;
 
       toast({
-        title: "Success",
-        description: "Report finalized successfully"
+        title: "Report Sent",
+        description: "The report has been sent to the patient successfully"
       });
-
-      setDiagnosis(prev => ({ ...prev, [sampleId]: '' }));
-      setRecommendations(prev => ({ ...prev, [sampleId]: '' }));
-      
-      // Refresh the page to see updated data
-      window.location.reload();
     } catch (error) {
-      console.error('Error finalizing report:', error);
+      console.error('Error sending report:', error);
       toast({
         title: "Error",
-        description: "Failed to finalize report",
+        description: "Failed to send report",
         variant: "destructive"
       });
     } finally {
-      setSubmitting(prev => ({ ...prev, [sampleId]: false }));
+      setSendingReport(prev => ({ ...prev, [sampleId]: false }));
     }
+  };
+
+  const generatePDFReport = (sample: any, result: any) => {
+    // Generate a downloadable report
+    const reportContent = `
+CERVICAL CYTOLOGY REPORT
+========================
+
+Patient Information:
+- Name: ${sample.patients?.name || 'N/A'}
+- Age: ${sample.patients?.age || 'N/A'}
+- Gender: ${sample.patients?.gender || 'N/A'}
+
+Sample Information:
+- Barcode: ${sample.barcode}
+- Test Type: ${sample.test_type}
+- Collection Date: ${new Date(sample.accession_date || '').toLocaleDateString()}
+- Customer: ${sample.customer_name}
+
+DIAGNOSIS:
+${result?.diagnosis || 'No diagnosis available'}
+
+RECOMMENDATIONS:
+${result?.recommendations || 'No recommendations'}
+
+Report Generated: ${new Date().toLocaleString()}
+Reviewed By: Pathologist
+    `.trim();
+
+    const blob = new Blob([reportContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Report_${sample.barcode}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Report Downloaded",
+      description: `Report for ${sample.barcode} has been downloaded`
+    });
   };
 
   const renderContent = () => {
@@ -137,8 +146,8 @@ const PathologistDashboard = ({ currentView }: PathologistDashboardProps) => {
         return (
           <div className="space-y-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Pathologist Dashboard</h1>
-              <p className="text-gray-600">Review AI-analyzed slides and finalize reports</p>
+              <h1 className="text-3xl font-bold text-foreground mb-2">Pathologist Dashboard</h1>
+              <p className="text-muted-foreground">Review AI-analyzed slides and finalize reports</p>
             </div>
             <StatsCards role="pathologist" />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -149,15 +158,20 @@ const PathologistDashboard = ({ currentView }: PathologistDashboardProps) => {
                 <CardContent>
                   <div className="space-y-3">
                     {pendingReviews.length === 0 ? (
-                      <p className="text-gray-500">No pending reviews</p>
+                      <p className="text-muted-foreground">No pending reviews</p>
                     ) : (
                       pendingReviews.slice(0, 5).map((sample) => (
-                        <div key={sample.id} className="flex justify-between items-center p-3 bg-blue-50 rounded">
+                        <div 
+                          key={sample.id} 
+                          className="flex justify-between items-center p-3 bg-primary/5 rounded cursor-pointer hover:bg-primary/10 transition-colors"
+                          onDoubleClick={() => handleCaseDoubleClick(sample.id)}
+                          title="Double-click to open in AI Review"
+                        >
                           <div>
                             <p className="font-medium">{sample.barcode}</p>
-                            <p className="text-sm text-gray-600">{sample.test_type} - {sample.customer_name}</p>
+                            <p className="text-sm text-muted-foreground">{sample.test_type} - {sample.customer_name}</p>
                             {sample.patients && (
-                              <p className="text-xs text-gray-500">Patient: {sample.patients.name} ({sample.patients.age})</p>
+                              <p className="text-xs text-muted-foreground">Patient: {sample.patients.name} ({sample.patients.age})</p>
                             )}
                           </div>
                           <Badge variant="outline">Review Required</Badge>
@@ -181,7 +195,7 @@ const PathologistDashboard = ({ currentView }: PathologistDashboardProps) => {
                       </div>
                     ))}
                     {completedSamples.length === 0 && (
-                      <p className="text-gray-500 text-sm">No recent activities</p>
+                      <p className="text-muted-foreground text-sm">No recent activities</p>
                     )}
                   </div>
                 </CardContent>
@@ -190,13 +204,13 @@ const PathologistDashboard = ({ currentView }: PathologistDashboardProps) => {
           </div>
         );
       case 'review-queue':
-        return <AISlideViewer />;
+        return <AISlideViewer initialCaseId={selectedCaseId} />;
       case 'finalize':
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold mb-6">Finalized Reports - Quality Control</h2>
+            <h2 className="text-2xl font-bold mb-6">Finalized Reports - Quality Control & Dispatch</h2>
             <p className="text-muted-foreground mb-4">
-              Review completed cases before final release. All diagnostic edits should be done in the AI Review Queue.
+              Review completed cases, generate final reports, and send to patients.
             </p>
             <div className="space-y-6">
               {completedSamples.length === 0 ? (
@@ -213,7 +227,14 @@ const PathologistDashboard = ({ currentView }: PathologistDashboardProps) => {
                       <CardHeader>
                         <CardTitle className="flex items-center justify-between">
                           <span>Sample {sample.barcode}</span>
-                          <Badge className="bg-green-100 text-green-800">Completed</Badge>
+                          <div className="flex items-center space-x-2">
+                            {result?.report_sent_at ? (
+                              <Badge className="bg-green-100 text-green-800">Report Sent</Badge>
+                            ) : (
+                              <Badge className="bg-amber-100 text-amber-800">Pending Dispatch</Badge>
+                            )}
+                            <Badge className="bg-primary/10 text-primary">Completed</Badge>
+                          </div>
                         </CardTitle>
                         <div className="text-sm text-muted-foreground">
                           <p>Test Type: {sample.test_type}</p>
@@ -243,6 +264,9 @@ const PathologistDashboard = ({ currentView }: PathologistDashboardProps) => {
                             <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
                               <span>Report Generated: {result.report_generated ? 'Yes' : 'No'}</span>
                               <span>Last Updated: {new Date(result.updated_at || '').toLocaleString()}</span>
+                              {result.report_sent_at && (
+                                <span>Sent: {new Date(result.report_sent_at).toLocaleString()}</span>
+                              )}
                             </div>
                           </>
                         ) : (
@@ -253,9 +277,27 @@ const PathologistDashboard = ({ currentView }: PathologistDashboardProps) => {
                             <Eye className="h-4 w-4 mr-2" />
                             View Full Report
                           </Button>
-                          <Button variant="outline">
-                            Export PDF
+                          <Button 
+                            variant="outline"
+                            onClick={() => generatePDFReport(sample, result)}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download PDF
                           </Button>
+                          {!result?.report_sent_at && (
+                            <Button 
+                              onClick={() => handleSendReport(sample.id)}
+                              disabled={sendingReport[sample.id]}
+                              className="bg-primary"
+                            >
+                              {sendingReport[sample.id] ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <Send className="h-4 w-4 mr-2" />
+                              )}
+                              Send to Patient
+                            </Button>
+                          )}
                         </div>
                       </CardContent>
                     </Card>

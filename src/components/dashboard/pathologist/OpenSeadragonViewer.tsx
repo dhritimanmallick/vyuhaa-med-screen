@@ -3,6 +3,7 @@ import OpenSeadragon from "openseadragon";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import { useToast } from "@/hooks/use-toast";
 import {
   ZoomIn,
   ZoomOut,
@@ -17,6 +18,7 @@ import {
   SunMedium,
   Contrast,
   Palette,
+  Trash2,
 } from "lucide-react";
 import {
   Popover,
@@ -51,19 +53,27 @@ interface Annotation {
   height: number;
   type: 'rectangle' | 'circle' | 'measurement';
   label?: string;
-  color?: string;
+  color: string;
+  startPoint?: { x: number; y: number };
+  endPoint?: { x: number; y: number };
+  distance?: number;
 }
 
 const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonViewerProps>(
   ({ slideData, imageUrl, slideImageUrl: propSlideImageUrl, onAnnotationChange, initialPosition }, ref) => {
     const viewerRef = useRef<HTMLDivElement>(null);
+    const overlayRef = useRef<HTMLDivElement>(null);
     const osdViewerRef = useRef<OpenSeadragon.Viewer | null>(null);
+    const { toast } = useToast();
     
     const [zoomLevel, setZoomLevel] = useState(1);
     const [tool, setTool] = useState<'pointer' | 'move' | 'rectangle' | 'circle' | 'ruler'>('pointer');
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
     const [isFullScreen, setIsFullScreen] = useState(false);
     const [viewportInfo, setViewportInfo] = useState({ x: 0, y: 0 });
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
+    const [currentAnnotation, setCurrentAnnotation] = useState<Annotation | null>(null);
     
     // Image adjustment filters
     const [brightness, setBrightness] = useState(100);
@@ -186,6 +196,113 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
       }
     }, [tool]);
 
+    // Calculate distance between two points (simulated μm)
+    const calculateDistance = (start: { x: number; y: number }, end: { x: number; y: number }): number => {
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const pixelDistance = Math.sqrt(dx * dx + dy * dy);
+      // Convert to μm (assuming 0.5μm per pixel at base zoom)
+      return Math.round(pixelDistance * 500 / zoomLevel);
+    };
+
+    // Handle annotation drawing
+    const handleOverlayMouseDown = useCallback((e: React.MouseEvent) => {
+      if (tool === 'pointer' || tool === 'move') return;
+      
+      const rect = overlayRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      setIsDrawing(true);
+      setDrawStart({ x, y });
+      
+      const color = tool === 'rectangle' ? '#ef4444' : tool === 'circle' ? '#3b82f6' : '#22c55e';
+      
+      setCurrentAnnotation({
+        id: `ann-${Date.now()}`,
+        x,
+        y,
+        width: 0,
+        height: 0,
+        type: tool === 'ruler' ? 'measurement' : tool,
+        color,
+        startPoint: { x, y },
+      });
+    }, [tool, zoomLevel]);
+
+    const handleOverlayMouseMove = useCallback((e: React.MouseEvent) => {
+      if (!isDrawing || !drawStart || !currentAnnotation) return;
+      
+      const rect = overlayRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      const width = Math.abs(x - drawStart.x);
+      const height = Math.abs(y - drawStart.y);
+      const minX = Math.min(x, drawStart.x);
+      const minY = Math.min(y, drawStart.y);
+      
+      if (currentAnnotation.type === 'measurement') {
+        const distance = calculateDistance(drawStart, { x, y });
+        setCurrentAnnotation({
+          ...currentAnnotation,
+          endPoint: { x, y },
+          distance,
+        });
+      } else {
+        setCurrentAnnotation({
+          ...currentAnnotation,
+          x: minX,
+          y: minY,
+          width,
+          height,
+        });
+      }
+    }, [isDrawing, drawStart, currentAnnotation, zoomLevel]);
+
+    const handleOverlayMouseUp = useCallback(() => {
+      if (!isDrawing || !currentAnnotation) return;
+      
+      setIsDrawing(false);
+      
+      // Only add if annotation has size
+      if (currentAnnotation.type === 'measurement') {
+        if (currentAnnotation.distance && currentAnnotation.distance > 0) {
+          const newAnnotations = [...annotations, currentAnnotation];
+          setAnnotations(newAnnotations);
+          onAnnotationChange?.(newAnnotations);
+          toast({
+            title: "Measurement Added",
+            description: `Distance: ${currentAnnotation.distance}μm`,
+          });
+        }
+      } else if (currentAnnotation.width > 5 && currentAnnotation.height > 5) {
+        const newAnnotations = [...annotations, currentAnnotation];
+        setAnnotations(newAnnotations);
+        onAnnotationChange?.(newAnnotations);
+        toast({
+          title: "Annotation Added",
+          description: `${currentAnnotation.type} annotation created`,
+        });
+      }
+      
+      setCurrentAnnotation(null);
+      setDrawStart(null);
+    }, [isDrawing, currentAnnotation, annotations, onAnnotationChange, toast]);
+
+    const clearAnnotations = useCallback(() => {
+      setAnnotations([]);
+      onAnnotationChange?.([]);
+      toast({
+        title: "Annotations Cleared",
+        description: "All annotations have been removed",
+      });
+    }, [onAnnotationChange, toast]);
+
     const handleZoomIn = useCallback(() => {
       if (osdViewerRef.current) {
         const currentZoom = osdViewerRef.current.viewport.getZoom();
@@ -236,13 +353,6 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
     const zoomLevels = [0.5, 1, 2, 4, 8, 16, 20, 32, 40];
     const zoomPercentage = Math.round(zoomLevel * 100);
 
-    // Simulated AI detection regions
-    const detectionRegions = [
-      { id: 'hsil1', type: 'HSIL', confidence: 92, count: 2 },
-      { id: 'lsil1', type: 'LSIL', confidence: 78, count: 1 },
-      { id: 'normal', type: 'Normal', confidence: 95, count: 15 },
-    ];
-
     return (
       <div className="flex flex-col h-full">
         {/* Toolbar */}
@@ -286,8 +396,21 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
               onClick={() => setTool('ruler')}
               title="Measurement Tool"
             >
-              <Ruler className="h-4 w-4" />
+            <Ruler className="h-4 w-4" />
             </Button>
+
+            {/* Clear Annotations */}
+            {annotations.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearAnnotations}
+                title="Clear All Annotations"
+                className="text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
 
             {/* Image Adjustments Popover */}
             <Popover>
@@ -403,14 +526,146 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
             style={{ background: '#1a1a1a', minHeight: '400px' }}
           />
 
+          {/* Annotation Overlay */}
+          <div
+            ref={overlayRef}
+            className="absolute inset-0 w-full h-full z-10"
+            style={{ 
+              pointerEvents: tool !== 'pointer' && tool !== 'move' ? 'auto' : 'none',
+              cursor: tool === 'rectangle' || tool === 'circle' ? 'crosshair' : tool === 'ruler' ? 'crosshair' : 'default'
+            }}
+            onMouseDown={handleOverlayMouseDown}
+            onMouseMove={handleOverlayMouseMove}
+            onMouseUp={handleOverlayMouseUp}
+            onMouseLeave={handleOverlayMouseUp}
+          >
+            {/* Render existing annotations */}
+            {annotations.map((ann) => (
+              <React.Fragment key={ann.id}>
+                {ann.type === 'rectangle' && (
+                  <div
+                    className="absolute border-2 pointer-events-none"
+                    style={{
+                      left: ann.x,
+                      top: ann.y,
+                      width: ann.width,
+                      height: ann.height,
+                      borderColor: ann.color,
+                      backgroundColor: `${ann.color}20`,
+                    }}
+                  />
+                )}
+                {ann.type === 'circle' && (
+                  <div
+                    className="absolute border-2 rounded-full pointer-events-none"
+                    style={{
+                      left: ann.x,
+                      top: ann.y,
+                      width: ann.width,
+                      height: ann.height,
+                      borderColor: ann.color,
+                      backgroundColor: `${ann.color}20`,
+                    }}
+                  />
+                )}
+                {ann.type === 'measurement' && ann.startPoint && ann.endPoint && (
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                    <line
+                      x1={ann.startPoint.x}
+                      y1={ann.startPoint.y}
+                      x2={ann.endPoint.x}
+                      y2={ann.endPoint.y}
+                      stroke={ann.color}
+                      strokeWidth="2"
+                    />
+                    <circle cx={ann.startPoint.x} cy={ann.startPoint.y} r="4" fill={ann.color} />
+                    <circle cx={ann.endPoint.x} cy={ann.endPoint.y} r="4" fill={ann.color} />
+                    <text
+                      x={(ann.startPoint.x + ann.endPoint.x) / 2}
+                      y={(ann.startPoint.y + ann.endPoint.y) / 2 - 10}
+                      fill={ann.color}
+                      fontSize="12"
+                      fontWeight="bold"
+                      textAnchor="middle"
+                    >
+                      {ann.distance}μm
+                    </text>
+                  </svg>
+                )}
+              </React.Fragment>
+            ))}
+
+            {/* Current annotation being drawn */}
+            {currentAnnotation && (
+              <>
+                {currentAnnotation.type === 'rectangle' && (
+                  <div
+                    className="absolute border-2 pointer-events-none"
+                    style={{
+                      left: currentAnnotation.x,
+                      top: currentAnnotation.y,
+                      width: currentAnnotation.width,
+                      height: currentAnnotation.height,
+                      borderColor: currentAnnotation.color,
+                      backgroundColor: `${currentAnnotation.color}20`,
+                      borderStyle: 'dashed',
+                    }}
+                  />
+                )}
+                {currentAnnotation.type === 'circle' && (
+                  <div
+                    className="absolute border-2 rounded-full pointer-events-none"
+                    style={{
+                      left: currentAnnotation.x,
+                      top: currentAnnotation.y,
+                      width: currentAnnotation.width,
+                      height: currentAnnotation.height,
+                      borderColor: currentAnnotation.color,
+                      backgroundColor: `${currentAnnotation.color}20`,
+                      borderStyle: 'dashed',
+                    }}
+                  />
+                )}
+                {currentAnnotation.type === 'measurement' && currentAnnotation.startPoint && currentAnnotation.endPoint && (
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                    <line
+                      x1={currentAnnotation.startPoint.x}
+                      y1={currentAnnotation.startPoint.y}
+                      x2={currentAnnotation.endPoint.x}
+                      y2={currentAnnotation.endPoint.y}
+                      stroke={currentAnnotation.color}
+                      strokeWidth="2"
+                      strokeDasharray="5,5"
+                    />
+                    <circle cx={currentAnnotation.startPoint.x} cy={currentAnnotation.startPoint.y} r="4" fill={currentAnnotation.color} />
+                    <circle cx={currentAnnotation.endPoint.x} cy={currentAnnotation.endPoint.y} r="4" fill={currentAnnotation.color} />
+                    {currentAnnotation.distance && (
+                      <text
+                        x={(currentAnnotation.startPoint.x + currentAnnotation.endPoint.x) / 2}
+                        y={(currentAnnotation.startPoint.y + currentAnnotation.endPoint.y) / 2 - 10}
+                        fill={currentAnnotation.color}
+                        fontSize="12"
+                        fontWeight="bold"
+                        textAnchor="middle"
+                      >
+                        {currentAnnotation.distance}μm
+                      </text>
+                    )}
+                  </svg>
+                )}
+              </>
+            )}
+          </div>
+
           {/* Coordinates and info overlay */}
-          <div className="absolute bottom-2 left-2 bg-black/75 text-white text-xs px-2 py-1 rounded z-10">
+          <div className="absolute bottom-2 left-2 bg-black/75 text-white text-xs px-2 py-1 rounded z-20">
             Zoom: {zoomPercentage}% | Position: ({viewportInfo.x.toFixed(3)}, {viewportInfo.y.toFixed(3)}) | Tool: {tool}
+            {annotations.length > 0 && ` | Annotations: ${annotations.length}`}
           </div>
 
           {/* Scale bar */}
           {zoomLevel > 1 && (
-            <div className="absolute bottom-2 right-24 bg-black/75 text-white text-xs px-2 py-1 rounded z-10">
+            <div className="absolute bottom-2 right-24 bg-black/75 text-white text-xs px-2 py-1 rounded z-20">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-1 bg-white"></div>
                 <span>{Math.round(100 / zoomLevel)}μm</span>
@@ -427,21 +682,15 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
             <span>Field: {Math.round(500 / zoomLevel)}μm</span>
           </div>
           <div className="flex items-center space-x-2">
-            {detectionRegions.map((region) => (
-              <Badge
-                key={region.id}
-                variant="outline"
-                className={
-                  region.type === 'HSIL'
-                    ? 'bg-red-50 text-red-700 border-red-200'
-                    : region.type === 'LSIL'
-                    ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                    : 'bg-blue-50 text-blue-700 border-blue-200'
-                }
-              >
-                {region.type}: {region.count} regions
-              </Badge>
-            ))}
+            <Badge variant="outline" className="bg-muted">
+              {annotations.filter(a => a.type === 'rectangle').length} Rectangles
+            </Badge>
+            <Badge variant="outline" className="bg-muted">
+              {annotations.filter(a => a.type === 'circle').length} Circles
+            </Badge>
+            <Badge variant="outline" className="bg-muted">
+              {annotations.filter(a => a.type === 'measurement').length} Measurements
+            </Badge>
           </div>
         </div>
       </div>

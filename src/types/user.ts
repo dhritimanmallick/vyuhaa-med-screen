@@ -51,6 +51,9 @@ export interface TestResult {
   recommendations?: string;
   images_uploaded?: boolean;
   report_generated?: boolean;
+  report_url?: string;
+  report_sent_at?: string;
+  report_sent_to?: string;
   reviewed_by?: string;
   completed_by?: string;
   created_at?: string;
