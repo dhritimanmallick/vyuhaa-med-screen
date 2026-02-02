@@ -29,8 +29,12 @@ interface SlideImage {
   sample_id: string | null;
 }
 
-const AISlideViewer = () => {
-  const [selectedSampleId, setSelectedSampleId] = useState<string | null>(null);
+interface AISlideViewerProps {
+  initialCaseId?: string | null;
+}
+
+const AISlideViewer = ({ initialCaseId }: AISlideViewerProps = {}) => {
+  const [selectedSampleId, setSelectedSampleId] = useState<string | null>(initialCaseId || null);
   const [activeTab, setActiveTab] = useState("viewer");
   const [slideImages, setSlideImages] = useState<SlideImage[]>([]);
   const [loadingImages, setLoadingImages] = useState(false);
@@ -47,12 +51,14 @@ const AISlideViewer = () => {
     (sample.assigned_pathologist === user?.id && sample.status !== 'completed')
   );
 
-  // Set first sample as selected when samples load
+  // Set initial case or first sample when samples load
   useEffect(() => {
-    if (reviewSamples.length > 0 && !selectedSampleId) {
+    if (initialCaseId) {
+      setSelectedSampleId(initialCaseId);
+    } else if (reviewSamples.length > 0 && !selectedSampleId) {
       setSelectedSampleId(reviewSamples[0].id);
     }
-  }, [reviewSamples, selectedSampleId]);
+  }, [reviewSamples, selectedSampleId, initialCaseId]);
 
   // Fetch slide images for selected sample
   useEffect(() => {
