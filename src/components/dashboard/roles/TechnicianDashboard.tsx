@@ -7,9 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSamples } from "../../../hooks/useSupabaseData";
 import { useAuth } from "../../../hooks/useAuth";
 import StatsCards from "../StatsCards";
-import { Beaker, Upload, CheckCircle, Loader2, Camera, Send } from "lucide-react";
+import { Beaker, CheckCircle, Loader2, Camera, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import SlideImageUploader from "../technician/SlideImageUploader";
 
 interface TechnicianDashboardProps {
   currentView: string;
@@ -340,13 +341,14 @@ const TechnicianDashboard = ({ currentView }: TechnicianDashboardProps) => {
                       </div>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Upload Slide Images</label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                      <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                      <p className="text-sm text-gray-500">Click to upload slide images</p>
-                    </div>
-                  </div>
+                  {/* Slide Image Uploader */}
+                  <SlideImageUploader 
+                    sampleId={sample.id}
+                    sampleBarcode={sample.barcode}
+                    onUploadComplete={(imageUrl) => {
+                      console.log('Image uploaded:', imageUrl);
+                    }}
+                  />
                   <div className="flex space-x-2">
                     <Button 
                       className="flex-1"
