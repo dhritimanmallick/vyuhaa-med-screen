@@ -43,9 +43,8 @@ const OpenSeadragonViewer = ({ slideData, imageUrl, onAnnotationChange }: OpenSe
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [viewportInfo, setViewportInfo] = useState({ x: 0, y: 0 });
   
-  // Use a public DZI sample for proper deep-zoom testing
-  // This is a high-resolution histology sample from OpenSeadragon's public test images
-  const dziSource = imageUrl || 'https://openseadragon.github.io/example-images/duomo/duomo.dzi';
+  // Use the uploaded histology image for the viewer
+  const slideImageUrl = imageUrl || '/slides/histo_image.jpg';
 
   // Initialize OpenSeadragon
   useEffect(() => {
@@ -56,11 +55,14 @@ const OpenSeadragonViewer = ({ slideData, imageUrl, onAnnotationChange }: OpenSe
       osdViewerRef.current.destroy();
     }
 
-    // Create OpenSeadragon viewer with DZI tile source
+    // Create OpenSeadragon viewer with image source
     const viewer = OpenSeadragon({
       element: viewerRef.current,
       prefixUrl: "https://cdn.jsdelivr.net/npm/openseadragon@4.1/build/openseadragon/images/",
-      tileSources: dziSource,
+      tileSources: {
+        type: 'image',
+        url: slideImageUrl,
+      },
       animationTime: 0.5,
       blendTime: 0.1,
       constrainDuringPan: true,
@@ -115,7 +117,7 @@ const OpenSeadragonViewer = ({ slideData, imageUrl, onAnnotationChange }: OpenSe
         osdViewerRef.current = null;
       }
     };
-  }, [dziSource]);
+  }, [slideImageUrl]);
 
   // Handle tool changes
   useEffect(() => {
