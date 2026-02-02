@@ -194,72 +194,73 @@ const PathologistDashboard = ({ currentView }: PathologistDashboardProps) => {
       case 'finalize':
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold mb-6">Finalize Reports</h2>
+            <h2 className="text-2xl font-bold mb-6">Finalized Reports - Quality Control</h2>
+            <p className="text-muted-foreground mb-4">
+              Review completed cases before final release. All diagnostic edits should be done in the AI Review Queue.
+            </p>
             <div className="space-y-6">
-              {pendingReviews.length === 0 ? (
+              {completedSamples.length === 0 ? (
                 <Card>
                   <CardContent className="p-6 text-center">
-                    <p className="text-gray-600">No reports to finalize</p>
+                    <p className="text-muted-foreground">No finalized reports to review</p>
                   </CardContent>
                 </Card>
               ) : (
-                pendingReviews.map((sample) => (
-                  <Card key={sample.id}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        <span>Sample {sample.barcode}</span>
-                        <Badge variant="outline">Pending Review</Badge>
-                      </CardTitle>
-                      <div className="text-sm text-gray-600">
-                        <p>Test Type: {sample.test_type}</p>
-                        <p>Customer: {sample.customer_name}</p>
-                        {sample.patients && (
-                          <p>Patient: {sample.patients.name} (Age: {sample.patients.age}, Gender: {sample.patients.gender})</p>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor={`diagnosis-${sample.id}`}>Diagnosis *</Label>
-                        <Textarea
-                          id={`diagnosis-${sample.id}`}
-                          placeholder="Enter detailed diagnosis..."
-                          value={diagnosis[sample.id] || ''}
-                          onChange={(e) => setDiagnosis(prev => ({ ...prev, [sample.id]: e.target.value }))}
-                          className="min-h-[100px]"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`recommendations-${sample.id}`}>Recommendations</Label>
-                        <Textarea
-                          id={`recommendations-${sample.id}`}
-                          placeholder="Enter recommendations for follow-up..."
-                          value={recommendations[sample.id] || ''}
-                          onChange={(e) => setRecommendations(prev => ({ ...prev, [sample.id]: e.target.value }))}
-                          className="min-h-[80px]"
-                        />
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button 
-                          className="flex-1"
-                          onClick={() => handleFinalizeReport(sample.id)}
-                          disabled={submitting[sample.id]}
-                        >
-                          {submitting[sample.id] ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <FileCheck className="h-4 w-4 mr-2" />
+                completedSamples.map((sample) => {
+                  const result = testResults.find(tr => tr.sample_id === sample.id);
+                  return (
+                    <Card key={sample.id}>
+                      <CardHeader>
+                        <CardTitle className="flex items-center justify-between">
+                          <span>Sample {sample.barcode}</span>
+                          <Badge className="bg-green-100 text-green-800">Completed</Badge>
+                        </CardTitle>
+                        <div className="text-sm text-muted-foreground">
+                          <p>Test Type: {sample.test_type}</p>
+                          <p>Customer: {sample.customer_name}</p>
+                          {sample.patients && (
+                            <p>Patient: {sample.patients.name} (Age: {sample.patients.age}, Gender: {sample.patients.gender})</p>
                           )}
-                          Finalize Report
-                        </Button>
-                        <Button variant="outline">
-                          <Eye className="h-4 w-4 mr-2" />
-                          View Slides
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {result ? (
+                          <>
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium">Final Diagnosis:</p>
+                              <div className="p-3 bg-muted rounded-md">
+                                <p className="text-sm whitespace-pre-wrap">{result.diagnosis || 'No diagnosis recorded'}</p>
+                              </div>
+                            </div>
+                            {result.recommendations && (
+                              <div className="space-y-2">
+                                <p className="text-sm font-medium">Recommendations:</p>
+                                <div className="p-3 bg-muted rounded-md">
+                                  <p className="text-sm whitespace-pre-wrap">{result.recommendations}</p>
+                                </div>
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
+                              <span>Report Generated: {result.report_generated ? 'Yes' : 'No'}</span>
+                              <span>Last Updated: {new Date(result.updated_at || '').toLocaleString()}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-muted-foreground">No test result data available</p>
+                        )}
+                        <div className="flex space-x-2 pt-2">
+                          <Button variant="outline" className="flex-1">
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Full Report
+                          </Button>
+                          <Button variant="outline">
+                            Export PDF
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
               )}
             </div>
           </div>

@@ -38,6 +38,7 @@ export interface OpenSeadragonViewerHandle {
 interface OpenSeadragonViewerProps {
   slideData?: any;
   imageUrl?: string;
+  slideImageUrl?: string | null;
   onAnnotationChange?: (annotations: any[]) => void;
   initialPosition?: ViewerNavigationTarget;
 }
@@ -54,7 +55,7 @@ interface Annotation {
 }
 
 const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonViewerProps>(
-  ({ slideData, imageUrl, onAnnotationChange, initialPosition }, ref) => {
+  ({ slideData, imageUrl, slideImageUrl: propSlideImageUrl, onAnnotationChange, initialPosition }, ref) => {
     const viewerRef = useRef<HTMLDivElement>(null);
     const osdViewerRef = useRef<OpenSeadragon.Viewer | null>(null);
     
@@ -69,8 +70,8 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
     const [contrast, setContrast] = useState(100);
     const [saturation, setSaturation] = useState(100);
     
-    // Use the uploaded histology image for the viewer
-    const slideImageUrl = imageUrl || '/slides/histo_image.jpg';
+    // Use the uploaded slide image or fallback to default
+    const slideImageUrl = propSlideImageUrl || imageUrl || '/slides/histo_image.jpg';
 
     // Expose navigation method to parent
     useImperativeHandle(ref, () => ({
