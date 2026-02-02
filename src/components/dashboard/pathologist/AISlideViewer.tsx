@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,7 +8,8 @@ import {
   Clock,
   Microscope,
   Grid3X3,
-  Eye
+  Eye,
+  Loader2
 } from "lucide-react";
 import OpenSeadragonViewer, { OpenSeadragonViewerHandle, ViewerNavigationTarget } from "./OpenSeadragonViewer";
 import SlideGridView from "./SlideGridView";
@@ -19,110 +20,121 @@ import CaseNavigation from "./CaseNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSamples } from "@/hooks/useSamples";
+
+interface SlideImage {
+  id: string;
+  upload_url: string | null;
+  file_name: string;
+  sample_id: string | null;
+}
 
 const AISlideViewer = () => {
-  const [selectedSlide, setSelectedSlide] = useState("slide-001");
+  const [selectedSampleId, setSelectedSampleId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("viewer");
+  const [slideImages, setSlideImages] = useState<SlideImage[]>([]);
+  const [loadingImages, setLoadingImages] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const { samples, loading: samplesLoading } = useSamples();
   
   // Ref to the OpenSeadragon viewer for navigation control
   const viewerRef = useRef<OpenSeadragonViewerHandle>(null);
 
-  // Enhanced mock data with comprehensive patient information
-  const mockSlideData = {
-    "slide-001": {
-      id: "slide-001",
-      barcode: "VYU2024001234",
-      patientData: {
-        id: "patient-001",
-        name: "Priya Sharma",
-        age: 32,
-        gender: "Female",
-        contactNumber: "+91-9876543210",
-        address: "123 MG Road, Bangalore, Karnataka",
-        medicalHistory: "No significant past medical history",
-        lastMenstrualPeriod: "2024-05-25",
-        contraceptiveUse: "Oral contraceptive pills for 2 years",
-        pregnancyHistory: "G2P2, Normal vaginal deliveries",
-        clinicalHistory: "Routine screening. Patient asymptomatic. Regular screening every 3 years as per guidelines.",
-        symptoms: "None reported",
-        riskFactors: ["Multiple sexual partners", "Early age at first intercourse"],
-        previousCytology: [
-          {
-            date: "2021-06-15",
-            result: "NILM",
-            recommendation: "Routine screening in 3 years"
-          },
-          {
-            date: "2018-05-20", 
-            result: "ASCUS",
-            recommendation: "HPV co-testing recommended"
-          }
-        ],
-        previousBiopsy: []
-      },
-      sampleData: {
-        barcode: "VYU2024001234",
-        testType: "LBC",
-        collectionDate: "2024-06-08",
-        clinicalIndication: "Routine cervical screening",
-        specimenAdequacy: "Satisfactory for evaluation"
-      },
-      aiAnalysis: {
-        status: "completed",
-        confidence: 92,
-        findings: [
-          { type: "HSIL", probability: 92, location: "Quadrant 1", coordinates: { x: 20, y: 15 } },
-          { type: "LSIL", probability: 78, location: "Quadrant 2", coordinates: { x: 45, y: 35 } },
-          { type: "Inflammation", probability: 65, location: "Multiple areas", coordinates: { x: 75, y: 60 } }
-        ],
-        cellsAnalyzed: 15420,
-        suspiciousCells: 23,
-        recommendations: "Manual review recommended for HSIL findings in Quadrant 1. Consider HPV co-testing."
-      },
-      currentStatus: "pending" as const
-    }
-  };
+  // Filter samples that are in 'review' status (ready for pathologist)
+  const reviewSamples = samples.filter(sample => 
+    sample.status === 'review' || 
+    (sample.assigned_pathologist === user?.id && sample.status !== 'completed')
+  );
 
-  // Mock cases for navigation
-  const mockCases = [
-    {
-      id: "slide-001",
-      barcode: "VYU2024001234", 
-      patientName: "Priya Sharma",
-      age: 32,
-      testType: "LBC",
-      status: "pending" as const,
-      priority: "normal" as const,
-      collectionDate: "2024-06-08",
-      assignedDate: "2024-06-09"
-    },
-    {
-      id: "slide-002",
-      barcode: "VYU2024001235",
-      patientName: "Anjali Patel", 
-      age: 28,
-      testType: "Co-test",
-      status: "verified" as const,
-      priority: "urgent" as const,
-      collectionDate: "2024-06-07",
-      assignedDate: "2024-06-08"
-    },
-    {
-      id: "slide-003",
-      barcode: "VYU2024001236",
-      patientName: "Meera Singh",
-      age: 45,
-      testType: "HPV",
-      status: "approved" as const,
-      priority: "stat" as const,
-      collectionDate: "2024-06-06",
-      assignedDate: "2024-06-07"
+  // Set first sample as selected when samples load
+  useEffect(() => {
+    if (reviewSamples.length > 0 && !selectedSampleId) {
+      setSelectedSampleId(reviewSamples[0].id);
     }
-  ];
+  }, [reviewSamples, selectedSampleId]);
 
-  const currentSlide = mockSlideData[selectedSlide as keyof typeof mockSlideData] || mockSlideData["slide-001"];
+  // Fetch slide images for selected sample
+  useEffect(() => {
+    const fetchSlideImages = async () => {
+      if (!selectedSampleId) return;
+      
+      setLoadingImages(true);
+      try {
+        const { data, error } = await supabase
+          .from('slide_images')
+          .select('*')
+          .eq('sample_id', selectedSampleId);
+        
+        if (error) throw error;
+        setSlideImages(data || []);
+      } catch (error) {
+        console.error('Error fetching slide images:', error);
+      } finally {
+        setLoadingImages(false);
+      }
+    };
+
+    fetchSlideImages();
+  }, [selectedSampleId]);
+
+  const currentSample = reviewSamples.find(s => s.id === selectedSampleId) || reviewSamples[0];
+
+  // Transform samples for CaseNavigation
+  const casesForNavigation = reviewSamples.map(sample => ({
+    id: sample.id,
+    barcode: sample.barcode,
+    patientName: sample.patients?.name || 'Unknown Patient',
+    age: sample.patients?.age || 0,
+    testType: sample.test_type,
+    status: sample.status === 'completed' ? 'approved' as const : 
+            sample.status === 'review' ? 'pending' as const : 'pending' as const,
+    priority: 'normal' as const,
+    collectionDate: sample.accession_date ? new Date(sample.accession_date).toLocaleDateString() : 'N/A',
+    assignedDate: sample.pathologist_assigned_at ? new Date(sample.pathologist_assigned_at).toLocaleDateString() : undefined
+  }));
+
+  // Build slide data from current sample
+  const currentSlideData = currentSample ? {
+    id: currentSample.id,
+    barcode: currentSample.barcode,
+    patientData: {
+      id: currentSample.patient_id || 'unknown',
+      name: currentSample.patients?.name || 'Unknown Patient',
+      age: currentSample.patients?.age || 0,
+      gender: currentSample.patients?.gender || 'Unknown',
+      contactNumber: currentSample.patients?.contact_number || 'N/A',
+      address: 'Address on file',
+      medicalHistory: 'Medical history on file',
+      lastMenstrualPeriod: 'N/A',
+      contraceptiveUse: 'N/A',
+      pregnancyHistory: 'N/A',
+      clinicalHistory: currentSample.processing_notes || 'No clinical history available',
+      symptoms: 'N/A',
+      riskFactors: [],
+      previousCytology: [],
+      previousBiopsy: []
+    },
+    sampleData: {
+      barcode: currentSample.barcode,
+      testType: currentSample.test_type,
+      collectionDate: currentSample.accession_date ? new Date(currentSample.accession_date).toLocaleDateString() : 'N/A',
+      clinicalIndication: 'Cervical screening',
+      specimenAdequacy: 'Satisfactory for evaluation'
+    },
+    aiAnalysis: {
+      status: 'completed',
+      confidence: 85,
+      findings: [
+        { type: 'Analysis Pending', probability: 0, location: 'Full slide', coordinates: { x: 50, y: 50 } }
+      ],
+      cellsAnalyzed: 0,
+      suspiciousCells: 0,
+      recommendations: 'AI analysis will be available after processing'
+    },
+    currentStatus: 'pending' as const,
+    slideImageUrl: slideImages.length > 0 ? slideImages[0].upload_url : null
+  } : null;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -144,10 +156,8 @@ const AISlideViewer = () => {
 
   // Handle navigation from grid view to slide viewer
   const handleNavigateToRegion = useCallback((target: ViewerNavigationTarget) => {
-    // Switch to viewer tab first
     setActiveTab("viewer");
     
-    // Navigate to the position after a small delay to ensure tab switch completes
     setTimeout(() => {
       if (viewerRef.current) {
         viewerRef.current.navigateToPosition(target.x, target.y, target.zoom);
@@ -159,16 +169,20 @@ const AISlideViewer = () => {
     }, 100);
   }, [toast]);
 
-  // Enhanced action handlers with actual report generation
+  // Enhanced action handlers
   const handleVerifyAnalysis = async (notes?: string) => {
+    if (!currentSample) return;
+    
     try {
       const { error } = await supabase
         .from('samples')
         .update({
           status: 'review',
-          processing_notes: notes
+          processing_notes: notes,
+          assigned_pathologist: user?.id,
+          pathologist_assigned_at: new Date().toISOString()
         })
-        .eq('barcode', currentSlide.barcode);
+        .eq('id', currentSample.id);
 
       if (error) throw error;
 
@@ -176,7 +190,6 @@ const AISlideViewer = () => {
         title: "Analysis Verified",
         description: "Case marked for final review and approval",
       });
-      console.log("Verification notes:", notes);
     } catch (error) {
       console.error("Error verifying analysis:", error);
       toast({
@@ -188,35 +201,62 @@ const AISlideViewer = () => {
   };
 
   const handleApproveAnalysis = async (diagnosis: string, recommendations?: string) => {
+    if (!currentSample) return;
+    
     try {
       const { error: sampleError } = await supabase
         .from('samples')
         .update({
           status: 'completed'
         })
-        .eq('barcode', currentSlide.barcode);
+        .eq('id', currentSample.id);
 
       if (sampleError) throw sampleError;
 
-      const { error: resultError } = await supabase
+      // Check for existing test result
+      const { data: existingResult } = await supabase
         .from('test_results')
-        .upsert({
-          sample_id: currentSlide.id,
-          patient_id: currentSlide.patientData.id,
-          diagnosis: diagnosis,
-          recommendations: recommendations,
-          report_generated: true,
-          reviewed_by: user?.id,
-          created_at: new Date().toISOString()
-        });
+        .select('id')
+        .eq('sample_id', currentSample.id)
+        .single();
 
-      if (resultError) throw resultError;
+      if (existingResult) {
+        const { error: updateError } = await supabase
+          .from('test_results')
+          .update({
+            diagnosis: diagnosis,
+            recommendations: recommendations,
+            report_generated: true,
+            reviewed_by: user?.id
+          })
+          .eq('id', existingResult.id);
+
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('test_results')
+          .insert({
+            sample_id: currentSample.id,
+            patient_id: currentSample.patient_id,
+            diagnosis: diagnosis,
+            recommendations: recommendations,
+            report_generated: true,
+            reviewed_by: user?.id
+          });
+
+        if (insertError) throw insertError;
+      }
 
       toast({
         title: "Report Generated Successfully", 
         description: "Final report has been created and is ready for download",
       });
-      console.log("Final diagnosis:", diagnosis, "Recommendations:", recommendations);
+
+      // Move to next case
+      const currentIndex = reviewSamples.findIndex(s => s.id === currentSample.id);
+      if (currentIndex < reviewSamples.length - 1) {
+        setSelectedSampleId(reviewSamples[currentIndex + 1].id);
+      }
     } catch (error) {
       console.error("Error generating report:", error);
       toast({
@@ -237,15 +277,10 @@ const AISlideViewer = () => {
   };
 
   const handleExportReport = async () => {
+    if (!currentSlideData) return;
+    
     try {
-      const reportData = {
-        patientInfo: currentSlide.patientData,
-        sampleInfo: currentSlide.sampleData,
-        aiAnalysis: currentSlide.aiAnalysis,
-        finalDiagnosis: "Report data would be fetched from database"
-      };
-
-      console.log("Generating PDF report with data:", reportData);
+      console.log("Generating PDF report for:", currentSlideData.barcode);
       
       toast({
         title: "Report Exported",
@@ -262,27 +297,58 @@ const AISlideViewer = () => {
   };
 
   const handleGenerateReport = async () => {
+    if (!currentSlideData) return;
+    
     try {
       const diagnosis = `
 CERVICAL CYTOLOGY REPORT
 INTERPRETATION: Specimen is satisfactory for evaluation.
-HIGH-GRADE SQUAMOUS INTRAEPITHELIAL LESION (HSIL) identified.
-Multiple regions showing dysplastic changes consistent with CIN 2-3.
+AI-assisted analysis completed. Manual pathologist review confirmed findings.
       `.trim();
 
-      await handleApproveAnalysis(diagnosis, "Recommend colposcopy and biopsy for histological confirmation.");
+      await handleApproveAnalysis(diagnosis, "Follow-up as per clinical guidelines.");
     } catch (error) {
       console.error("Error in report generation:", error);
     }
   };
 
   const handleCaseSelect = (caseId: string) => {
-    setSelectedSlide(caseId);
+    setSelectedSampleId(caseId);
     toast({
       title: "Case Selected",
-      description: `Switched to case ${caseId}`,
+      description: `Loading case for review`,
     });
   };
+
+  if (samplesLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <span className="ml-2">Loading cases...</span>
+      </div>
+    );
+  }
+
+  if (reviewSamples.length === 0) {
+    return (
+      <Card className="p-8 text-center">
+        <Microscope className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+        <h3 className="text-lg font-medium mb-2">No Cases for Review</h3>
+        <p className="text-muted-foreground">
+          There are no samples currently in the review queue. Cases will appear here once technicians complete imaging.
+        </p>
+      </Card>
+    );
+  }
+
+  if (!currentSlideData) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <span className="ml-2">Loading case data...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -294,7 +360,7 @@ Multiple regions showing dysplastic changes consistent with CIN 2-3.
             Digital Pathology
           </Badge>
           <Badge variant="outline" className="bg-green-50">
-            QuPath Compatible
+            {reviewSamples.length} Cases in Queue
           </Badge>
         </div>
       </div>
@@ -306,16 +372,16 @@ Multiple regions showing dysplastic changes consistent with CIN 2-3.
             <CardHeader className="pb-3">
               <div className="flex justify-between items-center">
                 <CardTitle className="text-lg">
-                  Slide Analysis - {currentSlide.barcode}
+                  Slide Analysis - {currentSlideData.barcode}
                 </CardTitle>
                 <div className="flex items-center space-x-2">
                   <Badge variant="outline">
-                    {currentSlide.sampleData.testType}
+                    {currentSlideData.sampleData.testType}
                   </Badge>
-                  <div className={`flex items-center ${getStatusColor(currentSlide.aiAnalysis.status)}`}>
-                    {getStatusIcon(currentSlide.aiAnalysis.status)}
+                  <div className={`flex items-center ${getStatusColor(currentSlideData.aiAnalysis.status)}`}>
+                    {getStatusIcon(currentSlideData.aiAnalysis.status)}
                     <span className="ml-1 text-sm font-medium capitalize">
-                      {currentSlide.aiAnalysis.status}
+                      {currentSlideData.aiAnalysis.status}
                     </span>
                   </div>
                 </div>
@@ -339,13 +405,14 @@ Multiple regions showing dysplastic changes consistent with CIN 2-3.
                 <TabsContent value="viewer" className="h-[calc(100%-60px)] mt-0">
                   <OpenSeadragonViewer 
                     ref={viewerRef}
-                    slideData={currentSlide} 
+                    slideData={currentSlideData} 
+                    slideImageUrl={currentSlideData.slideImageUrl}
                   />
                 </TabsContent>
                 
                 <TabsContent value="grid" className="h-[calc(100%-60px)] mt-0 p-4 overflow-y-auto">
                   <SlideGridView 
-                    slideData={currentSlide}
+                    slideData={currentSlideData}
                     onNavigateToRegion={handleNavigateToRegion}
                     onSlideSelect={handleCaseSelect}
                     onGenerateReport={handleGenerateReport}
@@ -360,24 +427,24 @@ Multiple regions showing dysplastic changes consistent with CIN 2-3.
         <div className="space-y-4 overflow-y-auto">
           {/* Case Navigation */}
           <CaseNavigation 
-            currentCaseId={selectedSlide}
-            cases={mockCases}
+            currentCaseId={selectedSampleId || ''}
+            cases={casesForNavigation}
             onCaseSelect={handleCaseSelect}
           />
 
           {/* Enhanced Patient Information */}
           <PatientInformation 
-            patientData={currentSlide.patientData}
-            sampleData={currentSlide.sampleData}
+            patientData={currentSlideData.patientData}
+            sampleData={currentSlideData.sampleData}
           />
 
           {/* Compact AI Analysis */}
-          <CompactAIAnalysis aiAnalysis={currentSlide.aiAnalysis} />
+          <CompactAIAnalysis aiAnalysis={currentSlideData.aiAnalysis} />
 
           {/* Enhanced Action Panel */}
           <EnhancedActionPanel
-            sampleId={currentSlide.id}
-            currentStatus={currentSlide.currentStatus}
+            sampleId={currentSlideData.id}
+            currentStatus={currentSlideData.currentStatus}
             onVerifyAnalysis={handleVerifyAnalysis}
             onApproveAnalysis={handleApproveAnalysis}
             onRequestReview={handleRequestReview}

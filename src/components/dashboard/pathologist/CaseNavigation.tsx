@@ -30,9 +30,10 @@ interface CaseNavigationProps {
   currentCaseId: string;
   cases: CaseData[];
   onCaseSelect: (caseId: string) => void;
+  onCaseDoubleClick?: (caseId: string) => void;
 }
 
-const CaseNavigation = ({ currentCaseId, cases, onCaseSelect }: CaseNavigationProps) => {
+const CaseNavigation = ({ currentCaseId, cases, onCaseSelect, onCaseDoubleClick }: CaseNavigationProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "verified" | "approved">("all");
@@ -141,11 +142,13 @@ const CaseNavigation = ({ currentCaseId, cases, onCaseSelect }: CaseNavigationPr
               <div
                 key={case_.id}
                 onClick={() => onCaseSelect(case_.id)}
+                onDoubleClick={() => onCaseDoubleClick?.(case_.id)}
                 className={`p-2 rounded cursor-pointer transition-colors text-xs ${
                   case_.id === currentCaseId
-                    ? "bg-blue-100 border border-blue-300"
-                    : "bg-gray-50 hover:bg-gray-100"
+                    ? "bg-primary/10 border border-primary/30"
+                    : "bg-muted hover:bg-muted/80"
                 }`}
+                title="Double-click to open in review"
               >
                 <div className="flex justify-between items-start mb-1">
                   <div className="flex items-center space-x-2">
