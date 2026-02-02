@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   CheckCircle,
@@ -11,7 +10,7 @@ import {
   Grid3X3,
   Eye
 } from "lucide-react";
-import OpenSeadragonViewer from "./OpenSeadragonViewer";
+import OpenSeadragonViewer, { OpenSeadragonViewerHandle, ViewerNavigationTarget } from "./OpenSeadragonViewer";
 import SlideGridView from "./SlideGridView";
 import PatientInformation from "./PatientInformation";
 import CompactAIAnalysis from "./CompactAIAnalysis";
@@ -26,6 +25,9 @@ const AISlideViewer = () => {
   const [activeTab, setActiveTab] = useState("viewer");
   const { toast } = useToast();
   const { user } = useAuth();
+  
+  // Ref to the OpenSeadragon viewer for navigation control
+  const viewerRef = useRef<OpenSeadragonViewerHandle>(null);
 
   // Enhanced mock data with comprehensive patient information
   const mockSlideData = {
@@ -120,7 +122,7 @@ const AISlideViewer = () => {
     }
   ];
 
-  const currentSlide = mockSlideData[selectedSlide];
+  const currentSlide = mockSlideData[selectedSlide as keyof typeof mockSlideData] || mockSlideData["slide-001"];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -140,16 +142,31 @@ const AISlideViewer = () => {
     }
   };
 
+  // Handle navigation from grid view to slide viewer
+  const handleNavigateToRegion = useCallback((target: ViewerNavigationTarget) => {
+    // Switch to viewer tab first
+    setActiveTab("viewer");
+    
+    // Navigate to the position after a small delay to ensure tab switch completes
+    setTimeout(() => {
+      if (viewerRef.current) {
+        viewerRef.current.navigateToPosition(target.x, target.y, target.zoom);
+        toast({
+          title: "Navigated to Region",
+          description: `Position: (${target.x.toFixed(2)}, ${target.y.toFixed(2)}) at ${target.zoom}x zoom`,
+        });
+      }
+    }, 100);
+  }, [toast]);
+
   // Enhanced action handlers with actual report generation
   const handleVerifyAnalysis = async (notes?: string) => {
     try {
-      // Update sample status in database
       const { error } = await supabase
         .from('samples')
         .update({
-          status: 'verified',
-          reviewed_by: user?.id,
-          review_notes: notes
+          status: 'review',
+          processing_notes: notes
         })
         .eq('barcode', currentSlide.barcode);
 
@@ -172,18 +189,15 @@ const AISlideViewer = () => {
 
   const handleApproveAnalysis = async (diagnosis: string, recommendations?: string) => {
     try {
-      // Update sample status
       const { error: sampleError } = await supabase
         .from('samples')
         .update({
-          status: 'completed',
-          reviewed_by: user?.id
+          status: 'completed'
         })
         .eq('barcode', currentSlide.barcode);
 
       if (sampleError) throw sampleError;
 
-      // Create or update test result
       const { error: resultError } = await supabase
         .from('test_results')
         .upsert({
@@ -224,7 +238,6 @@ const AISlideViewer = () => {
 
   const handleExportReport = async () => {
     try {
-      // Generate and download PDF report
       const reportData = {
         patientInfo: currentSlide.patientData,
         sampleInfo: currentSlide.sampleData,
@@ -274,7 +287,7 @@ Multiple regions showing dysplastic changes consistent with CIN 2-3.
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">AI Slide Analysis</h2>
+        <h2 className="text-2xl font-bold">AI Slide Analysis</h2>
         <div className="flex items-center space-x-2">
           <Badge variant="outline" className="bg-blue-50">
             <Microscope className="h-3 w-3 mr-1" />
@@ -324,12 +337,16 @@ Multiple regions showing dysplastic changes consistent with CIN 2-3.
                 </div>
                 
                 <TabsContent value="viewer" className="h-[calc(100%-60px)] mt-0">
-                  <OpenSeadragonViewer slideData={currentSlide} />
+                  <OpenSeadragonViewer 
+                    ref={viewerRef}
+                    slideData={currentSlide} 
+                  />
                 </TabsContent>
                 
                 <TabsContent value="grid" className="h-[calc(100%-60px)] mt-0 p-4 overflow-y-auto">
                   <SlideGridView 
                     slideData={currentSlide}
+                    onNavigateToRegion={handleNavigateToRegion}
                     onSlideSelect={handleCaseSelect}
                     onGenerateReport={handleGenerateReport}
                   />
