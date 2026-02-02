@@ -9,8 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
 interface SlideImageUploaderProps {
-  sampleId: string;
-  sampleBarcode: string;
+  sampleId?: string;
+  sampleBarcode?: string;
   onUploadComplete?: (imageUrl: string) => void;
 }
 
@@ -72,6 +72,17 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
       return;
     }
 
+    // Check file size (20MB limit)
+    const oversizedFiles = imageFiles.filter(file => file.size > 20 * 1024 * 1024);
+    if (oversizedFiles.length > 0) {
+      toast({
+        title: "File Too Large",
+        description: `${oversizedFiles.map(f => f.name).join(', ')} exceed 20MB limit`,
+        variant: "destructive"
+      });
+      return;
+    }
+
     // Add files to upload queue
     const newFiles: UploadedFile[] = imageFiles.map(file => ({
       id: `${Date.now()}-${file.name}`,
@@ -90,43 +101,59 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
   };
 
   const uploadFile = async (file: File, fileId: string) => {
+    if (!user?.id) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to upload files",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       // Update status to uploading
       setUploadedFiles(prev => 
         prev.map(f => f.id === fileId ? { ...f, status: 'uploading' as const } : f)
       );
 
-      // Simulate progress for now (in production, this would use actual upload progress)
-      const progressInterval = setInterval(() => {
-        setUploadedFiles(prev => 
-          prev.map(f => {
-            if (f.id === fileId && f.progress < 90) {
-              return { ...f, progress: f.progress + 10 };
-            }
-            return f;
-          })
-        );
-      }, 200);
+      // Create unique file name with timestamp and barcode
+      const timestamp = Date.now();
+      const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const fileName = sampleBarcode 
+        ? `${sampleBarcode}/${timestamp}_${sanitizedName}`
+        : `general/${timestamp}_${sanitizedName}`;
 
-      // For now, store in local public folder path
-      // In production, this would upload to Supabase Storage
-      const fileName = `${sampleBarcode}_${Date.now()}_${file.name}`;
-      const filePath = `/slides/${fileName}`;
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('slide-images')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('slide-images')
+        .getPublicUrl(fileName);
+
+      const publicUrl = urlData.publicUrl;
 
       // Create a record in the slide_images table
-      const { data, error } = await supabase
+      const { error: dbError } = await supabase
         .from('slide_images')
         .insert({
-          file_name: fileName,
-          upload_url: filePath,
-          user_id: user?.id
-        })
-        .select()
-        .single();
+          file_name: sanitizedName,
+          upload_url: publicUrl,
+          user_id: user.id,
+          sample_id: sampleId || null
+        });
 
-      clearInterval(progressInterval);
-
-      if (error) throw error;
+      if (dbError) {
+        console.error('Database insert error:', dbError);
+        // Continue even if DB insert fails - file is already uploaded
+      }
 
       // Update status to success
       setUploadedFiles(prev => 
@@ -134,7 +161,7 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
           ...f, 
           status: 'success' as const, 
           progress: 100,
-          url: filePath 
+          url: publicUrl 
         } : f)
       );
 
@@ -143,22 +170,22 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
         description: `${file.name} uploaded successfully`
       });
 
-      onUploadComplete?.(filePath);
+      onUploadComplete?.(publicUrl);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upload error:', error);
       
       setUploadedFiles(prev => 
         prev.map(f => f.id === fileId ? { 
           ...f, 
           status: 'error' as const, 
-          error: 'Upload failed' 
+          error: error.message || 'Upload failed' 
         } : f)
       );
 
       toast({
         title: "Upload Failed",
-        description: `Failed to upload ${file.name}`,
+        description: error.message || `Failed to upload ${file.name}`,
         variant: "destructive"
       });
     }
@@ -193,6 +220,11 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
         <CardTitle className="text-base flex items-center gap-2">
           <Upload className="h-4 w-4" />
           Upload Slide Images
+          {sampleBarcode && (
+            <Badge variant="outline" className="ml-2">
+              {sampleBarcode}
+            </Badge>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -257,6 +289,9 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
                       </Badge>
                     )}
                   </div>
+                  {file.error && (
+                    <p className="text-xs text-red-500 mt-1">{file.error}</p>
+                  )}
                 </div>
 
                 <Button

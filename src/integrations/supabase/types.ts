@@ -346,6 +346,7 @@ export type Database = {
         Row: {
           file_name: string
           id: string
+          sample_id: string | null
           upload_url: string | null
           uploaded_at: string
           user_id: string
@@ -353,6 +354,7 @@ export type Database = {
         Insert: {
           file_name: string
           id?: string
+          sample_id?: string | null
           upload_url?: string | null
           uploaded_at?: string
           user_id: string
@@ -360,11 +362,20 @@ export type Database = {
         Update: {
           file_name?: string
           id?: string
+          sample_id?: string | null
           upload_url?: string | null
           uploaded_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "slide_images_sample_id_fkey"
+            columns: ["sample_id"]
+            isOneToOne: false
+            referencedRelation: "samples"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       test_results: {
         Row: {
