@@ -11,7 +11,7 @@ import {
   Grid3X3,
   Eye
 } from "lucide-react";
-import SlideViewer from "./SlideViewer";
+import OpenSeadragonViewer from "./OpenSeadragonViewer";
 import SlideGridView from "./SlideGridView";
 import PatientInformation from "./PatientInformation";
 import CompactAIAnalysis from "./CompactAIAnalysis";
@@ -324,7 +324,7 @@ Multiple regions showing dysplastic changes consistent with CIN 2-3.
                 </div>
                 
                 <TabsContent value="viewer" className="h-[calc(100%-60px)] mt-0">
-                  <SlideViewer slideData={currentSlide} />
+                  <OpenSeadragonViewer slideData={currentSlide} />
                 </TabsContent>
                 
                 <TabsContent value="grid" className="h-[calc(100%-60px)] mt-0 p-4 overflow-y-auto">
