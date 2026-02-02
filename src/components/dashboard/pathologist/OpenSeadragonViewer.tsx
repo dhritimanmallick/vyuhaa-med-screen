@@ -395,11 +395,11 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
         </div>
 
         {/* OpenSeadragon Viewer Container */}
-        <div className="flex-1 relative bg-background">
+        <div className="flex-1 relative bg-background min-h-[400px]">
           <div
             ref={viewerRef}
-            className="absolute inset-0"
-            style={{ background: '#1a1a1a' }}
+            className="absolute inset-0 w-full h-full"
+            style={{ background: '#1a1a1a', minHeight: '400px' }}
           />
 
           {/* Coordinates and info overlay */}
