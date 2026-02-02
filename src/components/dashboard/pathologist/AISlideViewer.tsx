@@ -224,7 +224,7 @@ const AISlideViewer = ({ initialCaseId }: AISlideViewerProps = {}) => {
         .from('test_results')
         .select('id')
         .eq('sample_id', currentSample.id)
-        .single();
+        .maybeSingle();
 
       if (existingResult) {
         const { error: updateError } = await supabase
