@@ -4,10 +4,11 @@ import { useSamples, useTestResults } from "../../../hooks/useSupabaseData";
 import { useAuth } from "../../../hooks/useAuth";
 import StatsCards from "../StatsCards";
 import AISlideViewer from "../pathologist/AISlideViewer";
+import SecondOpinionDialog from "../pathologist/SecondOpinionDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Eye, FileText, Download, Send } from "lucide-react";
+import { Loader2, Eye, Download, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -272,8 +273,8 @@ Reviewed By: Pathologist
                         ) : (
                           <p className="text-muted-foreground">No test result data available</p>
                         )}
-                        <div className="flex space-x-2 pt-2">
-                          <Button variant="outline" className="flex-1">
+                        <div className="flex flex-wrap gap-2 pt-2">
+                          <Button variant="outline">
                             <Eye className="h-4 w-4 mr-2" />
                             View Full Report
                           </Button>
@@ -284,6 +285,11 @@ Reviewed By: Pathologist
                             <Download className="h-4 w-4 mr-2" />
                             Download PDF
                           </Button>
+                          <SecondOpinionDialog
+                            sampleId={sample.id}
+                            sampleBarcode={sample.barcode}
+                            currentDiagnosis={result?.diagnosis}
+                          />
                           {!result?.report_sent_at && (
                             <Button 
                               onClick={() => handleSendReport(sample.id)}
