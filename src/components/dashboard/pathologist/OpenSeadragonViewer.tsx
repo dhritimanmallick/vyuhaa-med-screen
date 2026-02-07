@@ -43,6 +43,8 @@ interface OpenSeadragonViewerProps {
   slideImageUrl?: string | null;
   onAnnotationChange?: (annotations: any[]) => void;
   initialPosition?: ViewerNavigationTarget;
+  tileName?: string | null;
+  Doctor?: string;
 }
 
 interface Annotation {
@@ -60,12 +62,12 @@ interface Annotation {
 }
 
 const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonViewerProps>(
-  ({ slideData, imageUrl, slideImageUrl: propSlideImageUrl, onAnnotationChange, initialPosition }, ref) => {
+  ({ slideData, imageUrl, slideImageUrl: propSlideImageUrl, onAnnotationChange, initialPosition, tileName, Doctor = "Maharshi" }, ref) => {
     const viewerRef = useRef<HTMLDivElement>(null);
     const overlayRef = useRef<HTMLDivElement>(null);
     const osdViewerRef = useRef<OpenSeadragon.Viewer | null>(null);
     const { toast } = useToast();
-    
+
     const [zoomLevel, setZoomLevel] = useState(1);
     const [tool, setTool] = useState<'pointer' | 'move' | 'rectangle' | 'circle' | 'ruler'>('pointer');
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -74,12 +76,12 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
     const [isDrawing, setIsDrawing] = useState(false);
     const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
     const [currentAnnotation, setCurrentAnnotation] = useState<Annotation | null>(null);
-    
+
     // Image adjustment filters
     const [brightness, setBrightness] = useState(100);
     const [contrast, setContrast] = useState(100);
     const [saturation, setSaturation] = useState(100);
-    
+
     // Use the uploaded slide image or fallback to default
     const slideImageUrl = propSlideImageUrl || imageUrl || '/slides/histo_image.jpg';
 
@@ -104,14 +106,39 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
         osdViewerRef.current.destroy();
       }
 
-      // Create OpenSeadragon viewer with image source
+      // Determine tileSource based on tileName
+      let tileSource: any;
+      const actualTileName = tileName || (slideData?.barcode === "VYU-TEST" ? "4007" : tileName);
+      if (actualTileName) {
+        // Construct DZI object similar to DeepZoomViewer.jsx
+        tileSource = {
+          Image: {
+            xmlns: "http://schemas.microsoft.com/deepzoom/2008",
+            Url: `http://localhost:3000/tile/${Doctor}/${actualTileName}/`,
+            Format: "jpeg",
+            Overlap: 1,
+            TileSize: 512,
+            Size: {
+              Height: 61440,
+              Width: 60928
+            }
+          },
+          crossOriginPolicy: 'Anonymous',
+          ajaxWithCredentials: false
+        };
+        console.log(`Loading DZI slide for ${actualTileName}`);
+      } else {
+        tileSource = {
+          type: 'image',
+          url: slideImageUrl,
+        };
+      }
+
+      // Create OpenSeadragon viewer
       const viewer = OpenSeadragon({
         element: viewerRef.current,
         prefixUrl: "https://cdn.jsdelivr.net/npm/openseadragon@4.1/build/openseadragon/images/",
-        tileSources: {
-          type: 'image',
-          url: slideImageUrl,
-        },
+        tileSources: tileSource,
         animationTime: 0.5,
         blendTime: 0.1,
         constrainDuringPan: true,
@@ -119,7 +146,7 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
         minZoomImageRatio: 0.5,
         visibilityRatio: 0.5,
         zoomPerScroll: 1.5,
-        maxZoomLevel: 40,
+        maxZoomLevel: 128,
         minZoomLevel: 0.5,
         showNavigator: true,
         navigatorPosition: 'BOTTOM_RIGHT',
@@ -136,6 +163,7 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
           flickEnabled: true,
         },
         crossOriginPolicy: "Anonymous",
+        ajaxWithCredentials: false,
       });
 
       osdViewerRef.current = viewer;
@@ -156,7 +184,7 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
       // Add open handler
       viewer.addHandler('open', () => {
         console.log('OpenSeadragon viewer opened');
-        
+
         // Navigate to initial position if provided
         if (initialPosition) {
           viewer.viewport.zoomTo(initialPosition.zoom);
@@ -178,7 +206,7 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
     // Apply image filters
     useEffect(() => {
       if (osdViewerRef.current && osdViewerRef.current.canvas) {
-        osdViewerRef.current.canvas.style.filter = 
+        osdViewerRef.current.canvas.style.filter =
           `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
       }
     }, [brightness, contrast, saturation]);
@@ -186,9 +214,9 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
     // Handle tool changes
     useEffect(() => {
       if (!osdViewerRef.current) return;
-      
+
       const viewer = osdViewerRef.current;
-      
+
       if (tool === 'move' || tool === 'pointer') {
         viewer.setMouseNavEnabled(true);
       } else {
@@ -208,18 +236,18 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
     // Handle annotation drawing
     const handleOverlayMouseDown = useCallback((e: React.MouseEvent) => {
       if (tool === 'pointer' || tool === 'move') return;
-      
+
       const rect = overlayRef.current?.getBoundingClientRect();
       if (!rect) return;
-      
+
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      
+
       setIsDrawing(true);
       setDrawStart({ x, y });
-      
+
       const color = tool === 'rectangle' ? '#ef4444' : tool === 'circle' ? '#3b82f6' : '#22c55e';
-      
+
       setCurrentAnnotation({
         id: `ann-${Date.now()}`,
         x,
@@ -234,18 +262,18 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
 
     const handleOverlayMouseMove = useCallback((e: React.MouseEvent) => {
       if (!isDrawing || !drawStart || !currentAnnotation) return;
-      
+
       const rect = overlayRef.current?.getBoundingClientRect();
       if (!rect) return;
-      
+
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      
+
       const width = Math.abs(x - drawStart.x);
       const height = Math.abs(y - drawStart.y);
       const minX = Math.min(x, drawStart.x);
       const minY = Math.min(y, drawStart.y);
-      
+
       if (currentAnnotation.type === 'measurement') {
         const distance = calculateDistance(drawStart, { x, y });
         setCurrentAnnotation({
@@ -266,9 +294,9 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
 
     const handleOverlayMouseUp = useCallback(() => {
       if (!isDrawing || !currentAnnotation) return;
-      
+
       setIsDrawing(false);
-      
+
       // Only add if annotation has size
       if (currentAnnotation.type === 'measurement') {
         if (currentAnnotation.distance && currentAnnotation.distance > 0) {
@@ -289,7 +317,7 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
           description: `${currentAnnotation.type} annotation created`,
         });
       }
-      
+
       setCurrentAnnotation(null);
       setDrawStart(null);
     }, [isDrawing, currentAnnotation, annotations, onAnnotationChange, toast]);
@@ -396,7 +424,7 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
               onClick={() => setTool('ruler')}
               title="Measurement Tool"
             >
-            <Ruler className="h-4 w-4" />
+              <Ruler className="h-4 w-4" />
             </Button>
 
             {/* Clear Annotations */}
@@ -427,7 +455,7 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
                       Reset
                     </Button>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm flex items-center gap-2">
@@ -530,7 +558,7 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
           <div
             ref={overlayRef}
             className="absolute inset-0 w-full h-full z-10"
-            style={{ 
+            style={{
               pointerEvents: tool !== 'pointer' && tool !== 'move' ? 'auto' : 'none',
               cursor: tool === 'rectangle' || tool === 'circle' ? 'crosshair' : tool === 'ruler' ? 'crosshair' : 'default'
             }}

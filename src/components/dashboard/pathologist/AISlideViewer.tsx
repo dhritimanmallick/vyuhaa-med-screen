@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
+import {
   CheckCircle,
   XCircle,
   Clock,
@@ -31,9 +31,10 @@ interface SlideImage {
 
 interface AISlideViewerProps {
   initialCaseId?: string | null;
+  tileName?: string | null;
 }
 
-const AISlideViewer = ({ initialCaseId }: AISlideViewerProps = {}) => {
+const AISlideViewer = ({ initialCaseId, tileName: propTileName }: AISlideViewerProps = {}) => {
   const [selectedSampleId, setSelectedSampleId] = useState<string | null>(initialCaseId || null);
   const [activeTab, setActiveTab] = useState("viewer");
   const [slideImages, setSlideImages] = useState<SlideImage[]>([]);
@@ -41,13 +42,13 @@ const AISlideViewer = ({ initialCaseId }: AISlideViewerProps = {}) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { samples, loading: samplesLoading } = useSamples();
-  
+
   // Ref to the OpenSeadragon viewer for navigation control
   const viewerRef = useRef<OpenSeadragonViewerHandle>(null);
 
   // Filter samples that are in 'review' status (ready for pathologist)
-  const reviewSamples = samples.filter(sample => 
-    sample.status === 'review' || 
+  const reviewSamples = samples.filter(sample =>
+    sample.status === 'review' ||
     (sample.assigned_pathologist === user?.id && sample.status !== 'completed')
   );
 
@@ -64,14 +65,14 @@ const AISlideViewer = ({ initialCaseId }: AISlideViewerProps = {}) => {
   useEffect(() => {
     const fetchSlideImages = async () => {
       if (!selectedSampleId) return;
-      
+
       setLoadingImages(true);
       try {
         const { data, error } = await supabase
           .from('slide_images')
           .select('*')
           .eq('sample_id', selectedSampleId);
-        
+
         if (error) throw error;
         setSlideImages(data || []);
       } catch (error) {
@@ -93,8 +94,8 @@ const AISlideViewer = ({ initialCaseId }: AISlideViewerProps = {}) => {
     patientName: sample.patients?.name || 'Unknown Patient',
     age: sample.patients?.age || 0,
     testType: sample.test_type,
-    status: sample.status === 'completed' ? 'approved' as const : 
-            sample.status === 'review' ? 'pending' as const : 'pending' as const,
+    status: sample.status === 'completed' ? 'approved' as const :
+      sample.status === 'review' ? 'pending' as const : 'pending' as const,
     priority: 'normal' as const,
     collectionDate: sample.accession_date ? new Date(sample.accession_date).toLocaleDateString() : 'N/A',
     assignedDate: sample.pathologist_assigned_at ? new Date(sample.pathologist_assigned_at).toLocaleDateString() : undefined
@@ -163,7 +164,7 @@ const AISlideViewer = ({ initialCaseId }: AISlideViewerProps = {}) => {
   // Handle navigation from grid view to slide viewer
   const handleNavigateToRegion = useCallback((target: ViewerNavigationTarget) => {
     setActiveTab("viewer");
-    
+
     setTimeout(() => {
       if (viewerRef.current) {
         viewerRef.current.navigateToPosition(target.x, target.y, target.zoom);
@@ -178,7 +179,7 @@ const AISlideViewer = ({ initialCaseId }: AISlideViewerProps = {}) => {
   // Enhanced action handlers
   const handleVerifyAnalysis = async (notes?: string) => {
     if (!currentSample) return;
-    
+
     try {
       const { error } = await supabase
         .from('samples')
@@ -208,7 +209,7 @@ const AISlideViewer = ({ initialCaseId }: AISlideViewerProps = {}) => {
 
   const handleApproveAnalysis = async (diagnosis: string, recommendations?: string) => {
     if (!currentSample) return;
-    
+
     try {
       const { error: sampleError } = await supabase
         .from('samples')
@@ -254,7 +255,7 @@ const AISlideViewer = ({ initialCaseId }: AISlideViewerProps = {}) => {
       }
 
       toast({
-        title: "Report Generated Successfully", 
+        title: "Report Generated Successfully",
         description: "Final report has been created and is ready for download",
       });
 
@@ -284,10 +285,10 @@ const AISlideViewer = ({ initialCaseId }: AISlideViewerProps = {}) => {
 
   const handleExportReport = async () => {
     if (!currentSlideData) return;
-    
+
     try {
       console.log("Generating PDF report for:", currentSlideData.barcode);
-      
+
       toast({
         title: "Report Exported",
         description: "PDF report downloaded successfully",
@@ -304,7 +305,7 @@ const AISlideViewer = ({ initialCaseId }: AISlideViewerProps = {}) => {
 
   const handleGenerateReport = async () => {
     if (!currentSlideData) return;
-    
+
     try {
       const diagnosis = `
 CERVICAL CYTOLOGY REPORT
@@ -407,21 +408,24 @@ AI-assisted analysis completed. Manual pathologist review confirmed findings.
                     </TabsTrigger>
                   </TabsList>
                 </div>
-                
+
                 <TabsContent value="viewer" className="h-[calc(100%-60px)] mt-0">
-                  <OpenSeadragonViewer 
+                  <OpenSeadragonViewer
                     ref={viewerRef}
-                    slideData={currentSlideData} 
+                    slideData={currentSlideData}
                     slideImageUrl={currentSlideData.slideImageUrl}
+                    tileName={propTileName || currentSlideData.barcode}
                   />
                 </TabsContent>
-                
+
                 <TabsContent value="grid" className="h-[calc(100%-60px)] mt-0 p-4 overflow-y-auto">
-                  <SlideGridView 
+                  <SlideGridView
                     slideData={currentSlideData}
                     onNavigateToRegion={handleNavigateToRegion}
                     onSlideSelect={handleCaseSelect}
                     onGenerateReport={handleGenerateReport}
+                    Doctor="Maharshi"
+                    tileName={propTileName || currentSlideData.barcode}
                   />
                 </TabsContent>
               </Tabs>
@@ -432,14 +436,14 @@ AI-assisted analysis completed. Manual pathologist review confirmed findings.
         {/* Enhanced Analysis Panel */}
         <div className="space-y-4 overflow-y-auto">
           {/* Case Navigation */}
-          <CaseNavigation 
+          <CaseNavigation
             currentCaseId={selectedSampleId || ''}
             cases={casesForNavigation}
             onCaseSelect={handleCaseSelect}
           />
 
           {/* Enhanced Patient Information */}
-          <PatientInformation 
+          <PatientInformation
             patientData={currentSlideData.patientData}
             sampleData={currentSlideData.sampleData}
           />

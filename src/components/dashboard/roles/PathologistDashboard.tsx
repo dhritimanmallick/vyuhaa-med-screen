@@ -72,9 +72,9 @@ const PathologistDashboard = ({ currentView, onNavigateToReview }: PathologistDa
   const completedSamples = pathologistSamples.filter(sample => sample.status === 'completed');
 
   const handleCaseDoubleClick = (sampleId: string) => {
-    setSelectedCaseId(sampleId);
+    setSelectedCaseId("4007");
     if (onNavigateToReview) {
-      setSelectedTile(sampleId)
+      setSelectedTile("4007")
       onNavigateToReview();
     }
   };
@@ -199,16 +199,16 @@ Reviewed By: Pathologist
                     {pendingReviews.length === 0 ? (
                       <p className="text-muted-foreground">No pending reviews</p>
                     ) : (
-                      samples2.slice(0, 5).map((sample) => (
+                      pendingReviews.slice(0, 5).map((sample) => (
                         <div
                           key={sample.id}
                           className="flex justify-between items-center p-3 bg-primary/5 rounded cursor-pointer hover:bg-primary/10 transition-colors"
-                          onDoubleClick={() => handleCaseDoubleClick(sample)}
+                          onDoubleClick={() => handleCaseDoubleClick(sample.id)}
                           title="Double-click to open in AI Review"
                         >
                           <div>
-                            {/* <p className="font-medium">{sample.barcode}</p> */}
-                            <p className="text-sm text-muted-foreground">{sample}</p>
+                            <p className="font-medium">{sample.barcode}</p>
+                            <p className="text-sm text-muted-foreground">{sample.test_type} - {sample.customer_name}</p>
                             {sample.patients && (
                               <p className="text-xs text-muted-foreground">Patient: {sample.patients.name} ({sample.patients.age})</p>
                             )}
@@ -243,7 +243,7 @@ Reviewed By: Pathologist
           </div>
         );
       case 'review-queue':
-        return <AISlideViewer initialCaseId={selectedCaseId} />;
+        return <AISlideViewer initialCaseId={selectedCaseId} tileName={selectedTile} />;
       // return <SuspectedTileViewer Doctor="Maharshi" tileName={selectedTile} />
       case 'finalize':
         return (
