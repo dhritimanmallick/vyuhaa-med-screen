@@ -16,7 +16,6 @@ import SuspectedTileViewer from "./viewer/SuspectedTileViewer"
 interface PathologistDashboardProps {
   currentView: string;
   onNavigateToReview?: () => void;
-
 }
 
 const PathologistDashboard = ({ currentView, onNavigateToReview }: PathologistDashboardProps) => {
@@ -244,8 +243,8 @@ Reviewed By: Pathologist
           </div>
         );
       case 'review-queue':
-        // return <AISlideViewer initialCaseId={selectedCaseId} />;
-        return <SuspectedTileViewer Doctor="Maharshi" tileName={selectedTile} />
+        return <AISlideViewer initialCaseId={selectedCaseId} />;
+      // return <SuspectedTileViewer Doctor="Maharshi" tileName={selectedTile} />
       case 'finalize':
         return (
           <div className="space-y-6">

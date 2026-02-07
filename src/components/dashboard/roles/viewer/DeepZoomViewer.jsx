@@ -383,17 +383,13 @@ const DeepZoomViewer = ({ tileSources, zoomLevel, xCoord, yCoord, annotDetArr, i
 
 
   return (
-    <div>
-      <div style={{ display: "flex" }}>
+    <div style={{ height: "100vh", width: "100%", overflow: "hidden" }}>
+      <div style={{ display: "flex", height: "100%" }}>
         <div
           id="viewer"
           ref={viewerRef}
-          style={{ width: "100%", height: "850px", padding: "none" }}
+          style={{ width: "100%", height: "100%", padding: "none" }}
         />
-
-
-
-
       </div>
     </div>
   );
