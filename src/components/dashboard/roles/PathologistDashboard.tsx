@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useSamples, useTestResults } from "../../../hooks/useSupabaseData";
 import { useAuth } from "../../../hooks/useAuth";
@@ -12,15 +11,19 @@ import { Loader2, Eye, Download, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+import SuspectedTileViewer from "./viewer/SuspectedTileViewer"
+
 interface PathologistDashboardProps {
   currentView: string;
   onNavigateToReview?: () => void;
+
 }
 
 const PathologistDashboard = ({ currentView, onNavigateToReview }: PathologistDashboardProps) => {
 
 
   const [samples2, setSamples2] = useState<any[]>([]);
+  const [selectedTile, setSelectedTile] = useState<any>(null);
 
 
   useEffect(() => {
@@ -72,6 +75,7 @@ const PathologistDashboard = ({ currentView, onNavigateToReview }: PathologistDa
   const handleCaseDoubleClick = (sampleId: string) => {
     setSelectedCaseId(sampleId);
     if (onNavigateToReview) {
+      setSelectedTile(sampleId)
       onNavigateToReview();
     }
   };
@@ -240,7 +244,8 @@ Reviewed By: Pathologist
           </div>
         );
       case 'review-queue':
-        return <AISlideViewer initialCaseId={selectedCaseId} />;
+        // return <AISlideViewer initialCaseId={selectedCaseId} />;
+        return <SuspectedTileViewer Doctor="Maharshi" tileName={selectedTile} />
       case 'finalize':
         return (
           <div className="space-y-6">
