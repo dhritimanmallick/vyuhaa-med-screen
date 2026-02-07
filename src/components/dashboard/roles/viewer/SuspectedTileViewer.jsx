@@ -358,7 +358,7 @@ const SuspectedTileViewer = ({ Doctor, tileName }) => {
       </Draggable> */}
 
 
-      <div style={{ display: "flex" }}>
+      <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
         <div>
           <SideNav
             onSelect={(selected) => {
@@ -576,12 +576,27 @@ const SuspectedTileViewer = ({ Doctor, tileName }) => {
           display: "grid",
           gridTemplateColumns: `repeat(${gridx}, 1fr)`,
           gridTemplateRows: `repeat(${gridy}, 1fr)`,
-          marginLeft: "65px"
+          marginLeft: "65px",
+          height: "100%",
+          width: "calc(100% - 65px)",
+          overflow: "hidden"
         }}>
           {currentItems.map((image, index) => (
-            <div key={index} className="grid-item" style={{ position: 'relative' }}>
+            <div key={index} className="grid-item" style={{ position: 'relative', height: "100%", width: "100%", overflow: "hidden" }}>
               <ContextMenu model={[...items,]} ref={cm} breakpoint="767px" />
-              <img className={(scaleSelected) ? 'imageBtnScale' : 'imageBtn'} src={image.src2} alt="" onClick={() => handleImageClick(image.zoom, image.x, image.y, image.annotation)} style={{ height: "100%" }} onContextMenu={(event) => onRightClick(event, image.id)} />
+              <img
+                className={(scaleSelected) ? 'imageBtnScale' : 'imageBtn'}
+                src={image.src2}
+                alt=""
+                onClick={() => handleImageClick(image.zoom, image.x, image.y, image.annotation)}
+                style={{
+                  height: "100%",
+                  width: "100%",
+                  objectFit: "contain",
+                  display: "block"
+                }}
+                onContextMenu={(event) => onRightClick(event, image.id)}
+              />
 
 
               <div style={{ position: "absolute", top: "10px", left: "10px", color: "white", background: "rgba(0, 0, 0, 0.5)", padding: "5px" }}>

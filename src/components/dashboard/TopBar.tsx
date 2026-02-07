@@ -7,9 +7,10 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 interface TopBarProps {
   user: User;
   onLogout: () => void;
+  currentView?: string;
 }
 
-const TopBar = ({ user, onLogout }: TopBarProps) => {
+const TopBar = ({ user, onLogout, currentView }: TopBarProps) => {
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4">
       <div className="flex items-center justify-between">
@@ -23,9 +24,9 @@ const TopBar = ({ user, onLogout }: TopBarProps) => {
           <Button variant="ghost" size="icon">
             <Bell className="h-5 w-5" />
           </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onLogout}
             className="flex items-center space-x-2"
           >

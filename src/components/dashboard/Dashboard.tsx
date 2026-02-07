@@ -45,8 +45,8 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
         return <TechnicianDashboard currentView={currentView} />;
       case 'pathologist':
         return (
-          <PathologistDashboard 
-            currentView={currentView} 
+          <PathologistDashboard
+            currentView={currentView}
             onNavigateToReview={handleNavigateToReview}
           />
         );
@@ -62,8 +62,10 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
       <div className="flex h-screen bg-gray-50 w-full">
         <Sidebar user={user} currentView={currentView} setCurrentView={setCurrentView} />
         <SidebarInset className="flex flex-col">
-          <TopBar user={user} onLogout={onLogout} />
-          <main className="flex-1 overflow-x-hidden overflow-y-auto p-6">
+          {currentView !== 'review-queue' && (
+            <TopBar user={user} onLogout={onLogout} currentView={currentView} />
+          )}
+          <main className={`flex-1 overflow-x-hidden ${currentView === 'review-queue' ? 'overflow-y-hidden p-0' : 'overflow-y-auto p-6'}`}>
             {renderContent()}
           </main>
         </SidebarInset>
