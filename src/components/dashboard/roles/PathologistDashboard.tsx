@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSamples, useTestResults } from "../../../hooks/useSupabaseData";
 import { useAuth } from "../../../hooks/useAuth";
 import StatsCards from "../StatsCards";
@@ -18,16 +18,51 @@ interface PathologistDashboardProps {
 }
 
 const PathologistDashboard = ({ currentView, onNavigateToReview }: PathologistDashboardProps) => {
+
+
+  const [samples2, setSamples2] = useState<any[]>([]);
+
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch("http://localhost:8000/getDoctors", {
+          headers: {
+            Authorization: `Basic ${btoa("user:password")}`,
+          },
+        });
+
+        console.log('test')
+
+        if (response.ok) {
+
+          const data = await response.json();
+          console.log(data)
+          setSamples2(data[1].patients);
+
+        } else {
+          console.error("Failed to fetch samples");
+        }
+      } catch (error) {
+        console.error("Error fetching samples:", error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+
+
   const { samples, loading, error } = useSamples();
   const { testResults } = useTestResults();
   const { user } = useAuth();
   const { toast } = useToast();
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
-  const [sendingReport, setSendingReport] = useState<{[key: string]: boolean}>({});
+  const [sendingReport, setSendingReport] = useState<{ [key: string]: boolean }>({});
 
   // Filter samples assigned to this pathologist or pending review
-  const pathologistSamples = samples.filter(sample => 
-    sample.assigned_pathologist === user?.id || 
+  const pathologistSamples = samples.filter(sample =>
+    sample.assigned_pathologist === user?.id ||
     (sample.status === 'review' && !sample.assigned_pathologist)
   );
 
@@ -44,7 +79,7 @@ const PathologistDashboard = ({ currentView, onNavigateToReview }: PathologistDa
   const handleSendReport = async (sampleId: string) => {
     const sample = samples.find(s => s.id === sampleId);
     const result = testResults.find(tr => tr.sample_id === sampleId);
-    
+
     if (!result?.diagnosis) {
       toast({
         title: "Error",
@@ -154,23 +189,23 @@ Reviewed By: Pathologist
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Pending AI Reviews ({pendingReviews.length})</CardTitle>
+                  <CardTitle>Pending AI Reviews ({samples2.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
                     {pendingReviews.length === 0 ? (
                       <p className="text-muted-foreground">No pending reviews</p>
                     ) : (
-                      pendingReviews.slice(0, 5).map((sample) => (
-                        <div 
-                          key={sample.id} 
+                      samples2.slice(0, 5).map((sample) => (
+                        <div
+                          key={sample.id}
                           className="flex justify-between items-center p-3 bg-primary/5 rounded cursor-pointer hover:bg-primary/10 transition-colors"
-                          onDoubleClick={() => handleCaseDoubleClick(sample.id)}
+                          onDoubleClick={() => handleCaseDoubleClick(sample)}
                           title="Double-click to open in AI Review"
                         >
                           <div>
-                            <p className="font-medium">{sample.barcode}</p>
-                            <p className="text-sm text-muted-foreground">{sample.test_type} - {sample.customer_name}</p>
+                            {/* <p className="font-medium">{sample.barcode}</p> */}
+                            <p className="text-sm text-muted-foreground">{sample}</p>
                             {sample.patients && (
                               <p className="text-xs text-muted-foreground">Patient: {sample.patients.name} ({sample.patients.age})</p>
                             )}
@@ -182,7 +217,7 @@ Reviewed By: Pathologist
                   </div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader>
                   <CardTitle>Recent Activities</CardTitle>
@@ -278,7 +313,7 @@ Reviewed By: Pathologist
                             <Eye className="h-4 w-4 mr-2" />
                             View Full Report
                           </Button>
-                          <Button 
+                          <Button
                             variant="outline"
                             onClick={() => generatePDFReport(sample, result)}
                           >
@@ -291,7 +326,7 @@ Reviewed By: Pathologist
                             currentDiagnosis={result?.diagnosis}
                           />
                           {!result?.report_sent_at && (
-                            <Button 
+                            <Button
                               onClick={() => handleSendReport(sample.id)}
                               disabled={sendingReport[sample.id]}
                               className="bg-primary"
