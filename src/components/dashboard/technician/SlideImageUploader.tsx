@@ -37,13 +37,21 @@ const getApiUrl = () => {
 // - EC2 self-hosted: uses JWT stored by backend login flow (vyuhaa_access_token)
 // - Lovable/Supabase: uses current Supabase session access token
 const getAuthToken = async () => {
-  if (typeof window === "undefined") return null;
+  try {
+    if (typeof window === "undefined") return null;
 
-  const ec2Token = localStorage.getItem("vyuhaa_access_token");
-  if (ec2Token) return ec2Token;
+    const ec2Token = localStorage.getItem("vyuhaa_access_token");
+    if (ec2Token) return ec2Token;
 
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      console.error("[SlideImageUploader] getSession error:", error);
+    }
+    return data.session?.access_token ?? null;
+  } catch (err) {
+    console.error("[SlideImageUploader] getAuthToken exception:", err);
+    return null;
+  }
 };
 
 const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: SlideImageUploaderProps) => {
