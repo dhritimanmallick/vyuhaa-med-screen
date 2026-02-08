@@ -69,14 +69,15 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
   };
 
   const handleFiles = async (files: File[]) => {
-    // Filter for image files
-    const imageFiles = files.filter(file => 
-      file.type.startsWith('image/') || 
-      file.name.endsWith('.tiff') || 
-      file.name.endsWith('.tif') ||
-      file.name.endsWith('.svs') ||
-      file.name.endsWith('.ndpi')
-    );
+    // Filter for image files (case-insensitive extension check)
+    const imageFiles = files.filter(file => {
+      const ext = file.name.toLowerCase();
+      return file.type.startsWith('image/') || 
+        ext.endsWith('.tiff') || 
+        ext.endsWith('.tif') ||
+        ext.endsWith('.svs') ||
+        ext.endsWith('.ndpi');
+    });
 
     if (imageFiles.length === 0) {
       toast({
