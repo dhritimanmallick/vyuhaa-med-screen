@@ -1,4 +1,4 @@
-import { useState, useRef, ChangeEvent } from "react";
+import { useState, useRef, useEffect, ChangeEvent } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +51,35 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const syncToken = async () => {
+      // Prefer EC2 token if present
+      const ec2Token = localStorage.getItem("vyuhaa_access_token");
+      if (ec2Token) {
+        if (mounted) setAuthToken(ec2Token);
+        return;
+      }
+
+      const { data } = await supabase.auth.getSession();
+      if (mounted) setAuthToken(data.session?.access_token ?? null);
+    };
+
+    syncToken();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Keep token in sync for upload clicks
+      setAuthToken(session?.access_token ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -124,7 +153,7 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
   };
 
   const uploadFile = async (file: File, fileId: string) => {
-    const token = await getAuthToken();
+    const token = authToken ?? await getAuthToken();
     if (!token) {
       toast({
         title: "Authentication Required",
