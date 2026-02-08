@@ -60,19 +60,24 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
       // Prefer EC2 token if present
       const ec2Token = localStorage.getItem("vyuhaa_access_token");
       if (ec2Token) {
+        console.log("[SlideImageUploader] using EC2 token");
         if (mounted) setAuthToken(ec2Token);
         return;
       }
 
       const { data } = await supabase.auth.getSession();
+      console.log("[SlideImageUploader] Supabase session token:", data.session?.access_token ? "present" : "missing");
       if (mounted) setAuthToken(data.session?.access_token ?? null);
     };
 
     syncToken();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      // Keep token in sync for upload clicks
-      setAuthToken(session?.access_token ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Keep token in sync for upload clicks (but don't overwrite EC2 token if present)
+      const ec2Token = localStorage.getItem("vyuhaa_access_token");
+      const next = ec2Token ?? session?.access_token ?? null;
+      console.log("[SlideImageUploader] auth change:", event, "token:", next ? "present" : "missing");
+      setAuthToken(next);
     });
 
     return () => {
@@ -154,6 +159,7 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
 
   const uploadFile = async (file: File, fileId: string) => {
     const token = authToken ?? await getAuthToken();
+    console.log("[SlideImageUploader] upload start:", { file: file.name, size: file.size, token: token ? "present" : "missing" });
     if (!token) {
       toast({
         title: "Authentication Required",
