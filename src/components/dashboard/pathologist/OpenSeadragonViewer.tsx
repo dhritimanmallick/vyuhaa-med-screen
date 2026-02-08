@@ -43,6 +43,8 @@ interface OpenSeadragonViewerProps {
   slideImageUrl?: string | null;
   onAnnotationChange?: (annotations: any[]) => void;
   initialPosition?: ViewerNavigationTarget;
+  tileName?: string | null;
+  Doctor?: string;
 }
 
 interface Annotation {
@@ -60,7 +62,7 @@ interface Annotation {
 }
 
 const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonViewerProps>(
-  ({ slideData, imageUrl, slideImageUrl: propSlideImageUrl, onAnnotationChange, initialPosition }, ref) => {
+  ({ slideData, imageUrl, slideImageUrl: propSlideImageUrl, onAnnotationChange, initialPosition, tileName, Doctor = "Maharshi" }, ref) => {
     const viewerRef = useRef<HTMLDivElement>(null);
     const overlayRef = useRef<HTMLDivElement>(null);
     const osdViewerRef = useRef<OpenSeadragon.Viewer | null>(null);
@@ -104,14 +106,40 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
         osdViewerRef.current.destroy();
       }
 
-      // Create OpenSeadragon viewer with image source
+      // Determine tileSource based on tileName
+      let tileSource: any;
+      const actualTileName = tileName || (slideData?.barcode === "VYU-TEST" ? "4007" : tileName);
+      
+      if (actualTileName) {
+        // Construct DZI object for tile server
+        tileSource = {
+          Image: {
+            xmlns: "http://schemas.microsoft.com/deepzoom/2008",
+            Url: `http://localhost:3000/tile/${Doctor}/${actualTileName}/`,
+            Format: "jpeg",
+            Overlap: 1,
+            TileSize: 512,
+            Size: {
+              Height: 61440,
+              Width: 60928
+            }
+          },
+          crossOriginPolicy: 'Anonymous',
+          ajaxWithCredentials: false
+        };
+        console.log(`Loading DZI slide for ${actualTileName}`);
+      } else {
+        tileSource = {
+          type: 'image',
+          url: slideImageUrl,
+        };
+      }
+
+      // Create OpenSeadragon viewer
       const viewer = OpenSeadragon({
         element: viewerRef.current,
         prefixUrl: "https://cdn.jsdelivr.net/npm/openseadragon@4.1/build/openseadragon/images/",
-        tileSources: {
-          type: 'image',
-          url: slideImageUrl,
-        },
+        tileSources: tileSource,
         animationTime: 0.5,
         blendTime: 0.1,
         constrainDuringPan: true,
@@ -119,7 +147,7 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
         minZoomImageRatio: 0.5,
         visibilityRatio: 0.5,
         zoomPerScroll: 1.5,
-        maxZoomLevel: 40,
+        maxZoomLevel: 128,
         minZoomLevel: 0.5,
         showNavigator: true,
         navigatorPosition: 'BOTTOM_RIGHT',
@@ -136,6 +164,7 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
           flickEnabled: true,
         },
         crossOriginPolicy: "Anonymous",
+        ajaxWithCredentials: false,
       });
 
       osdViewerRef.current = viewer;
@@ -173,7 +202,7 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
           osdViewerRef.current = null;
         }
       };
-    }, [slideImageUrl, initialPosition]);
+    }, [slideImageUrl, initialPosition, tileName, Doctor, slideData?.barcode]);
 
     // Apply image filters
     useEffect(() => {

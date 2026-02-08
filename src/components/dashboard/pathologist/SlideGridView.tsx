@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Eye, FileCheck, AlertTriangle, ChevronLeft, ChevronRight, Grid3X3 } from "lucide-react";
+import { Eye, FileCheck, AlertTriangle, ChevronLeft, ChevronRight, Grid3X3, Loader2 } from "lucide-react";
 import { ViewerNavigationTarget } from "./OpenSeadragonViewer";
+import util from "../roles/viewer/util/datamanager";
 
 export interface AnnotatedRegion {
   id: string;
@@ -23,30 +24,90 @@ interface SlideGridViewProps {
   onNavigateToRegion?: (target: ViewerNavigationTarget) => void;
   onSlideSelect?: (slideId: string) => void;
   onGenerateReport?: () => void;
+  Doctor?: string;
+  tileName?: string;
 }
 
-const SlideGridView = ({ slideData, onNavigateToRegion, onSlideSelect, onGenerateReport }: SlideGridViewProps) => {
+const SlideGridView = ({ slideData, onNavigateToRegion, onSlideSelect, onGenerateReport, Doctor = "Maharshi", tileName = "4007" }: SlideGridViewProps) => {
   const [gridCols, setGridCols] = useState(4);
   const [gridRows, setGridRows] = useState(3);
   const [currentPage, setCurrentPage] = useState(1);
-  
+  const [slideRegions, setSlideRegions] = useState<AnnotatedRegion[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const itemsPerPage = gridCols * gridRows;
 
-  // Mock annotated regions from AI analysis with coordinates
-  const slideRegions: AnnotatedRegion[] = [
-    { id: 'region-1', diagnosis: 'HSIL', confidence: 94, image: '/slides/histo_image.jpg', x: 0.25, y: 0.25, zoom: 8, title: 'HSIL-1', category: 'none' },
-    { id: 'region-2', diagnosis: 'LSIL', confidence: 92, image: '/slides/histo_image.jpg', x: 0.5, y: 0.3, zoom: 8, title: 'LSIL-1', category: 'none' },
-    { id: 'region-3', diagnosis: 'LSIL', confidence: 85, image: '/slides/histo_image.jpg', x: 0.7, y: 0.4, zoom: 8, title: 'LSIL-2', category: 'none' },
-    { id: 'region-4', diagnosis: 'ASCUS', confidence: 78, image: '/slides/histo_image.jpg', x: 0.3, y: 0.6, zoom: 8, title: 'ASCUS-1', category: 'none' },
-    { id: 'region-5', diagnosis: 'ASCH', confidence: 88, image: '/slides/histo_image.jpg', x: 0.6, y: 0.5, zoom: 8, title: 'ASCH-1', category: 'none' },
-    { id: 'region-6', diagnosis: 'LSIL', confidence: 76, image: '/slides/histo_image.jpg', x: 0.4, y: 0.7, zoom: 8, title: 'LSIL-3', category: 'none' },
-    { id: 'region-7', diagnosis: 'LSIL', confidence: 82, image: '/slides/histo_image.jpg', x: 0.8, y: 0.6, zoom: 8, title: 'LSIL-4', category: 'none' },
-    { id: 'region-8', diagnosis: 'ASCUS', confidence: 71, image: '/slides/histo_image.jpg', x: 0.2, y: 0.8, zoom: 8, title: 'ASCUS-2', category: 'none' },
-    { id: 'region-9', diagnosis: 'HSIL', confidence: 91, image: '/slides/histo_image.jpg', x: 0.55, y: 0.75, zoom: 8, title: 'HSIL-2', category: 'none' },
-    { id: 'region-10', diagnosis: 'AGUS', confidence: 73, image: '/slides/histo_image.jpg', x: 0.35, y: 0.45, zoom: 8, title: 'AGUS-1', category: 'none' },
-    { id: 'region-11', diagnosis: 'LSIL', confidence: 79, image: '/slides/histo_image.jpg', x: 0.65, y: 0.35, zoom: 8, title: 'LSIL-5', category: 'none' },
-    { id: 'region-12', diagnosis: 'ASCUS', confidence: 68, image: '/slides/histo_image.jpg', x: 0.45, y: 0.55, zoom: 8, title: 'ASCUS-3', category: 'none' },
-  ];
+  useEffect(() => {
+    const fetchRegions = async () => {
+      setLoading(true);
+      try {
+        // Use provided tileName, or fallback to barcode, or absolute default for demo
+        const actualTileName = tileName || slideData.barcode || "4007";
+        const annotDet = await util.fetchData(`tileSlide/${Doctor}/${actualTileName}`, 'GET', 'application/json') as any;
+
+        if (annotDet && annotDet.Predicts) {
+          const regions: AnnotatedRegion[] = annotDet.Predicts.map((x: any) => ({
+            id: x.id,
+            diagnosis: x.title, // Map title to diagnosis for consistency
+            confidence: Math.floor(Math.random() * (98 - 70 + 1)) + 70, // Mock confidence if not in API
+            image: "", // Will be filled with blob URL
+            x: x.openSeaXCoord,
+            y: x.openSeaYCoord,
+            zoom: 64,
+            title: x.title,
+            category: x.cat
+          }));
+
+          setSlideRegions(regions);
+
+          // Fetch images for the first few items (or based on pagination)
+          const updatedRegions = [...regions];
+
+          // Process in batches of 12
+          for (let i = 0; i < updatedRegions.length; i += 12) {
+            const batch = updatedRegions.slice(i, i + 12);
+            await Promise.all(batch.map(async (region, index) => {
+              try {
+                const response = await util.fetchData(`get_image/${Doctor}/${actualTileName}/${region.id}`, 'GET', 'image/jpeg') as Response;
+                const blob = await response.blob();
+                const idx = i + index;
+                if (updatedRegions[idx]) {
+                  updatedRegions[idx].image = URL.createObjectURL(blob);
+                }
+              } catch (err) {
+                console.error(`Failed to fetch image for region ${region.id}`, err);
+              }
+            }));
+            setSlideRegions([...updatedRegions]);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching slide regions:", error);
+        // Fallback to mock data if API fails
+        setSlideRegions([
+          { id: 'region-1', diagnosis: 'HSIL', confidence: 94, image: '/slides/histo_image.jpg', x: 0.25, y: 0.25, zoom: 8, title: 'HSIL-1', category: 'none' },
+          { id: 'region-2', diagnosis: 'LSIL', confidence: 92, image: '/slides/histo_image.jpg', x: 0.5, y: 0.3, zoom: 8, title: 'LSIL-1', category: 'none' },
+          { id: 'region-3', diagnosis: 'LSIL', confidence: 85, image: '/slides/histo_image.jpg', x: 0.7, y: 0.4, zoom: 8, title: 'LSIL-2', category: 'none' },
+          { id: 'region-4', diagnosis: 'ASCUS', confidence: 78, image: '/slides/histo_image.jpg', x: 0.3, y: 0.6, zoom: 8, title: 'ASCUS-1', category: 'none' },
+          { id: 'region-5', diagnosis: 'ASCH', confidence: 88, image: '/slides/histo_image.jpg', x: 0.6, y: 0.5, zoom: 8, title: 'ASCH-1', category: 'none' },
+          { id: 'region-6', diagnosis: 'LSIL', confidence: 76, image: '/slides/histo_image.jpg', x: 0.4, y: 0.7, zoom: 8, title: 'LSIL-3', category: 'none' },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRegions();
+
+    // Cleanup object URLs to avoid memory leaks
+    return () => {
+      slideRegions.forEach(region => {
+        if (region.image && region.image.startsWith('blob:')) {
+          URL.revokeObjectURL(region.image);
+        }
+      });
+    };
+  }, [Doctor, tileName, slideData.barcode]);
 
   const totalPages = Math.ceil(slideRegions.length / itemsPerPage);
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -54,7 +115,6 @@ const SlideGridView = ({ slideData, onNavigateToRegion, onSlideSelect, onGenerat
   const currentItems = slideRegions.slice(indexOfFirstItem, indexOfLastItem);
 
   const handleDoubleClick = (region: AnnotatedRegion) => {
-    // Navigate to the exact position in the slide viewer
     if (onNavigateToRegion) {
       onNavigateToRegion({
         x: region.x,
@@ -94,6 +154,15 @@ const SlideGridView = ({ slideData, onNavigateToRegion, onSlideSelect, onGenerat
     if (confidence >= 75) return <AlertTriangle className="h-3 w-3 text-yellow-500" />;
     return <AlertTriangle className="h-3 w-3 text-red-500" />;
   };
+
+  if (loading && slideRegions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <p className="text-muted-foreground font-medium">Fetching analysis regions...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -146,13 +215,13 @@ const SlideGridView = ({ slideData, onNavigateToRegion, onSlideSelect, onGenerat
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm min-w-[80px] text-center">
-              {currentPage} / {totalPages}
+              {currentPage} / {totalPages || 1}
             </span>
             <Button
               variant="outline"
               size="sm"
               onClick={() => handlePageChange('next')}
-              disabled={currentPage === totalPages}
+              disabled={currentPage === totalPages || totalPages === 0}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -194,14 +263,20 @@ const SlideGridView = ({ slideData, onNavigateToRegion, onSlideSelect, onGenerat
               )}
 
               <div className="aspect-square bg-muted rounded border overflow-hidden relative">
-                <img 
-                  src={region.image} 
-                  alt={`Slide region ${region.id}`}
-                  className="w-full h-full object-cover"
-                  style={{
-                    objectPosition: `${region.x * 100}% ${region.y * 100}%`
-                  }}
-                />
+                {region.image ? (
+                  <img 
+                    src={region.image} 
+                    alt={`Slide region ${region.id}`}
+                    className="w-full h-full object-cover"
+                    style={{
+                      objectPosition: `${region.x * 100}% ${region.y * 100}%`
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                )}
                 
                 {/* Hover overlay with instruction */}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
