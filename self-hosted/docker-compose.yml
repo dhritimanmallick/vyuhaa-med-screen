@@ -44,6 +44,8 @@ services:
         condition: service_healthy
     networks:
       - vyuhaa-network
+    # Increase timeouts for large file uploads
+    stop_grace_period: 60s
 
   # Tile Server (FastAPI for DZI slides)
   tile-server:
@@ -61,15 +63,13 @@ services:
     networks:
       - vyuhaa-network
 
-  # Frontend (React/Vite)
+  # Frontend (Nginx serving static files)
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: http://localhost:3001
-        VITE_TILE_SERVER_URL: http://localhost:3000
+    image: nginx:alpine
     container_name: vyuhaa-frontend
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - frontend_build:/usr/share/nginx/html:ro
     ports:
       - "80:80"
     depends_on:
@@ -80,7 +80,15 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
   slide_storage:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/storage
+  frontend_build:
+    driver: local
 
 networks:
   vyuhaa-network:
