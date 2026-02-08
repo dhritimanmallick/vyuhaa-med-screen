@@ -72,12 +72,13 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
       return;
     }
 
-    // Check file size (20MB limit)
-    const oversizedFiles = imageFiles.filter(file => file.size > 20 * 1024 * 1024);
+    // Check file size (2GB limit for large pathology images)
+    const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
+    const oversizedFiles = imageFiles.filter(file => file.size > MAX_FILE_SIZE);
     if (oversizedFiles.length > 0) {
       toast({
         title: "File Too Large",
-        description: `${oversizedFiles.map(f => f.name).join(', ')} exceed 20MB limit`,
+        description: `${oversizedFiles.map(f => f.name).join(', ')} exceed 2GB limit`,
         variant: "destructive"
       });
       return;
@@ -254,7 +255,7 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
             or click to browse (JPG, PNG, TIFF, SVS, NDPI)
           </p>
           <p className="text-xs text-muted-foreground mt-2">
-            Maximum file size: 20MB per file
+            Maximum file size: 2GB per file
           </p>
         </div>
 
