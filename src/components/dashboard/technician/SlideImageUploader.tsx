@@ -101,6 +101,26 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
     }
   };
 
+  // Get MIME type for pathology image formats
+  const getContentType = (fileName: string): string => {
+    const ext = fileName.toLowerCase().split('.').pop();
+    const mimeTypes: Record<string, string> = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'tiff': 'image/tiff',
+      'tif': 'image/tiff',
+      'webp': 'image/webp',
+      'svs': 'image/tiff', // Aperio format - TIFF-based
+      'ndpi': 'image/tiff', // Hamamatsu format - TIFF-based
+      'vsi': 'image/tiff', // Olympus format
+      'scn': 'image/tiff', // Leica format
+      'mrxs': 'image/tiff', // 3DHISTECH format
+      'bif': 'image/tiff', // Ventana format
+    };
+    return mimeTypes[ext || ''] || 'application/octet-stream';
+  };
+
   const uploadFile = async (file: File, fileId: string) => {
     if (!user?.id) {
       toast({
@@ -124,12 +144,16 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
         ? `${sampleBarcode}/${timestamp}_${sanitizedName}`
         : `general/${timestamp}_${sanitizedName}`;
 
-      // Upload to Supabase Storage
+      // Get correct content type for pathology formats
+      const contentType = getContentType(file.name);
+
+      // Upload to Supabase Storage with explicit content type
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('slide-images')
         .upload(fileName, file, {
           cacheControl: '3600',
           upsert: false,
+          contentType: contentType, // Explicitly set MIME type
         });
 
       if (uploadError) throw uploadError;
