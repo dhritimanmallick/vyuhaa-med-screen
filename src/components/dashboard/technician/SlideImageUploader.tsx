@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Upload, X, Image, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SlideImageUploaderProps {
   sampleId?: string;
@@ -32,12 +33,17 @@ const getApiUrl = () => {
   return import.meta.env.VITE_API_URL || '';
 };
 
-// Get JWT token from localStorage (EC2 self-hosted auth)
-const getAuthToken = () => {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('vyuhaa_access_token');
-  }
-  return null;
+// Get auth token.
+// - EC2 self-hosted: uses JWT stored by backend login flow (vyuhaa_access_token)
+// - Lovable/Supabase: uses current Supabase session access token
+const getAuthToken = async () => {
+  if (typeof window === "undefined") return null;
+
+  const ec2Token = localStorage.getItem("vyuhaa_access_token");
+  if (ec2Token) return ec2Token;
+
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
 };
 
 const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: SlideImageUploaderProps) => {
@@ -118,7 +124,7 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
   };
 
   const uploadFile = async (file: File, fileId: string) => {
-    const token = getAuthToken();
+    const token = await getAuthToken();
     if (!token) {
       toast({
         title: "Authentication Required",
