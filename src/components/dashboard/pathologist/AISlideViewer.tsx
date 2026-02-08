@@ -31,9 +31,10 @@ interface SlideImage {
 
 interface AISlideViewerProps {
   initialCaseId?: string | null;
+  tileName?: string | null;
 }
 
-const AISlideViewer = ({ initialCaseId }: AISlideViewerProps = {}) => {
+const AISlideViewer = ({ initialCaseId, tileName: propTileName }: AISlideViewerProps = {}) => {
   const [selectedSampleId, setSelectedSampleId] = useState<string | null>(initialCaseId || null);
   const [activeTab, setActiveTab] = useState("viewer");
   const [slideImages, setSlideImages] = useState<SlideImage[]>([]);
@@ -413,6 +414,7 @@ AI-assisted analysis completed. Manual pathologist review confirmed findings.
                     ref={viewerRef}
                     slideData={currentSlideData} 
                     slideImageUrl={currentSlideData.slideImageUrl}
+                    tileName={propTileName || currentSlideData.barcode}
                   />
                 </TabsContent>
                 
@@ -422,6 +424,8 @@ AI-assisted analysis completed. Manual pathologist review confirmed findings.
                     onNavigateToRegion={handleNavigateToRegion}
                     onSlideSelect={handleCaseSelect}
                     onGenerateReport={handleGenerateReport}
+                    Doctor="Maharshi"
+                    tileName={propTileName || currentSlideData.barcode}
                   />
                 </TabsContent>
               </Tabs>
