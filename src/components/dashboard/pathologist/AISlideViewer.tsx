@@ -22,6 +22,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSamples } from "@/hooks/useSamples";
 
+// Helper to detect if running on EC2 (non-localhost)
+const isEC2 = () => typeof window !== 'undefined' && window.location.hostname !== 'localhost';
+
+// Get auth token for EC2 JWT auth
+const getAuthToken = () => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('vyuhaa_access_token');
+  }
+  return null;
+};
+
 interface SlideImage {
   id: string;
   upload_url: string | null;
@@ -68,13 +79,34 @@ const AISlideViewer = ({ initialCaseId, tileName: propTileName }: AISlideViewerP
       
       setLoadingImages(true);
       try {
-        const { data, error } = await supabase
-          .from('slide_images')
-          .select('*')
-          .eq('sample_id', selectedSampleId);
-        
-        if (error) throw error;
-        setSlideImages(data || []);
+        if (isEC2()) {
+          // EC2: Fetch from local Express backend
+          const token = getAuthToken();
+          const response = await fetch(`/api/upload/slides/${selectedSampleId}`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+          });
+          
+          if (!response.ok) throw new Error('Failed to fetch slides');
+          
+          const data = await response.json();
+          // Map EC2 response to expected format
+          const mappedData = data.map((item: any) => ({
+            id: item.id,
+            upload_url: item.file_path || item.url, // EC2 stores file_path
+            file_name: item.file_name,
+            sample_id: item.sample_id
+          }));
+          setSlideImages(mappedData);
+        } else {
+          // Lovable/Supabase: Use Supabase client
+          const { data, error } = await supabase
+            .from('slide_images')
+            .select('*')
+            .eq('sample_id', selectedSampleId);
+          
+          if (error) throw error;
+          setSlideImages(data || []);
+        }
       } catch (error) {
         console.error('Error fetching slide images:', error);
       } finally {

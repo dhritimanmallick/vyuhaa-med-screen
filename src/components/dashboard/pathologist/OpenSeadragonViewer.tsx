@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
+import { getTileServerUrl } from "../roles/viewer/util/datamanager";
 import {
   ZoomIn,
   ZoomOut,
@@ -111,11 +112,14 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
       const actualTileName = tileName || (slideData?.barcode === "VYU-TEST" ? "4007" : tileName);
       
       if (actualTileName) {
+        // Get tile server URL (works on both localhost and EC2)
+        const tileBaseUrl = getTileServerUrl();
+        
         // Construct DZI object for tile server
         tileSource = {
           Image: {
             xmlns: "http://schemas.microsoft.com/deepzoom/2008",
-            Url: `http://localhost:3000/tile/${Doctor}/${actualTileName}/`,
+            Url: `${tileBaseUrl}/tile/${Doctor}/${actualTileName}/`,
             Format: "jpeg",
             Overlap: 1,
             TileSize: 512,
@@ -127,7 +131,7 @@ const OpenSeadragonViewer = forwardRef<OpenSeadragonViewerHandle, OpenSeadragonV
           crossOriginPolicy: 'Anonymous',
           ajaxWithCredentials: false
         };
-        console.log(`Loading DZI slide for ${actualTileName}`);
+        console.log(`Loading DZI slide for ${actualTileName} from ${tileBaseUrl}`);
       } else {
         tileSource = {
           type: 'image',
