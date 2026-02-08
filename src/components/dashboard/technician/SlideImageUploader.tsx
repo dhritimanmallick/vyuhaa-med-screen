@@ -5,8 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Upload, X, Image, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 
 interface SlideImageUploaderProps {
   sampleId?: string;
@@ -24,9 +22,26 @@ interface UploadedFile {
   error?: string;
 }
 
+// Get API URL - uses relative path for EC2 deployment (proxied via nginx)
+const getApiUrl = () => {
+  // When deployed on EC2 with nginx, API is proxied at /api
+  // For local dev, you can set VITE_API_URL
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return ''; // Use relative URLs on EC2 (nginx proxies /api to backend)
+  }
+  return import.meta.env.VITE_API_URL || '';
+};
+
+// Get JWT token from localStorage (EC2 self-hosted auth)
+const getAuthToken = () => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('vyuhaa_access_token');
+  }
+  return null;
+};
+
 const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: SlideImageUploaderProps) => {
   const { toast } = useToast();
-  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -72,13 +87,13 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
       return;
     }
 
-    // Check file size (2GB limit for large pathology images)
-    const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
+    // Check file size (3GB limit for EC2 backend)
+    const MAX_FILE_SIZE = 3 * 1024 * 1024 * 1024; // 3GB
     const oversizedFiles = imageFiles.filter(file => file.size > MAX_FILE_SIZE);
     if (oversizedFiles.length > 0) {
       toast({
         title: "File Too Large",
-        description: `${oversizedFiles.map(f => f.name).join(', ')} exceed 2GB limit`,
+        description: `${oversizedFiles.map(f => f.name).join(', ')} exceed 3GB limit`,
         variant: "destructive"
       });
       return;
@@ -101,28 +116,9 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
     }
   };
 
-  // Get MIME type for pathology image formats
-  const getContentType = (fileName: string): string => {
-    const ext = fileName.toLowerCase().split('.').pop();
-    const mimeTypes: Record<string, string> = {
-      'jpg': 'image/jpeg',
-      'jpeg': 'image/jpeg',
-      'png': 'image/png',
-      'tiff': 'image/tiff',
-      'tif': 'image/tiff',
-      'webp': 'image/webp',
-      'svs': 'image/tiff', // Aperio format - TIFF-based
-      'ndpi': 'image/tiff', // Hamamatsu format - TIFF-based
-      'vsi': 'image/tiff', // Olympus format
-      'scn': 'image/tiff', // Leica format
-      'mrxs': 'image/tiff', // 3DHISTECH format
-      'bif': 'image/tiff', // Ventana format
-    };
-    return mimeTypes[ext || ''] || 'application/octet-stream';
-  };
-
   const uploadFile = async (file: File, fileId: string) => {
-    if (!user?.id) {
+    const token = getAuthToken();
+    if (!token) {
       toast({
         title: "Authentication Required",
         description: "Please log in to upload files",
@@ -137,48 +133,35 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
         prev.map(f => f.id === fileId ? { ...f, status: 'uploading' as const } : f)
       );
 
-      // Create unique file name with timestamp and barcode
-      const timestamp = Date.now();
-      const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const fileName = sampleBarcode 
-        ? `${sampleBarcode}/${timestamp}_${sanitizedName}`
-        : `general/${timestamp}_${sanitizedName}`;
-
-      // Get correct content type for pathology formats
-      const contentType = getContentType(file.name);
-
-      // Upload to Supabase Storage with explicit content type
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('slide-images')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: contentType, // Explicitly set MIME type
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('slide-images')
-        .getPublicUrl(fileName);
-
-      const publicUrl = urlData.publicUrl;
-
-      // Create a record in the slide_images table
-      const { error: dbError } = await supabase
-        .from('slide_images')
-        .insert({
-          file_name: sanitizedName,
-          upload_url: publicUrl,
-          user_id: user.id,
-          sample_id: sampleId || null
-        });
-
-      if (dbError) {
-        console.error('Database insert error:', dbError);
-        // Continue even if DB insert fails - file is already uploaded
+      // Create FormData for multipart upload
+      const formData = new FormData();
+      formData.append('file', file);
+      if (sampleId) {
+        formData.append('sample_id', sampleId);
       }
+      if (sampleBarcode) {
+        formData.append('tile_name', sampleBarcode);
+      }
+
+      const apiUrl = getApiUrl();
+      
+      // Upload to EC2 backend
+      const response = await fetch(`${apiUrl}/api/upload/slide`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          // Don't set Content-Type - browser will set it with boundary for FormData
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(errorData.error || `Upload failed (${response.status})`);
+      }
+
+      const data = await response.json();
+      const fileUrl = data.url || data.file_path;
 
       // Update status to success
       setUploadedFiles(prev => 
@@ -186,16 +169,16 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
           ...f, 
           status: 'success' as const, 
           progress: 100,
-          url: publicUrl 
+          url: fileUrl 
         } : f)
       );
 
       toast({
         title: "Upload Complete",
-        description: `${file.name} uploaded successfully`
+        description: `${file.name} uploaded successfully (${data.size_formatted || formatFileSize(file.size)})`
       });
 
-      onUploadComplete?.(publicUrl);
+      onUploadComplete?.(fileUrl);
 
     } catch (error: any) {
       console.error('Upload error:', error);
@@ -223,7 +206,8 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   };
 
   const getStatusIcon = (status: UploadedFile['status']) => {
@@ -279,7 +263,7 @@ const SlideImageUploader = ({ sampleId, sampleBarcode, onUploadComplete }: Slide
             or click to browse (JPG, PNG, TIFF, SVS, NDPI)
           </p>
           <p className="text-xs text-muted-foreground mt-2">
-            Maximum file size: 2GB per file
+            Maximum file size: 3GB per file
           </p>
         </div>
 
